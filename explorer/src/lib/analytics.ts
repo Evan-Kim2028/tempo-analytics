@@ -32,17 +32,26 @@ export async function getDailyStats(days = 30): Promise<DailyStat[]> {
   const cached = await getCached<DailyStat[]>(key)
   if (cached) return cached
 
-  const rows = await queryClickHouse<DailyStat>(`
+  // Join mv_daily_stats (SummingMergeTree) with mv_daily_uniq (AggregatingMergeTree)
+  const rows = await queryClickHouse<{
+    day: string; txs: string; unique_senders: string
+    batch_txs: string; sponsored_txs: string
+  }>(`
     SELECT
-      toStartOfDay(block_timestamp) as day,
-      count() as txs,
-      uniq(from) as unique_senders,
-      countIf(call_count > 1) as batch_txs,
-      countIf(fee_payer != from) as sponsored_txs
-    FROM txs
-    WHERE block_timestamp >= now() - INTERVAL ${days} DAY
-    GROUP BY day
-    ORDER BY day ASC
+      s.day                             AS day,
+      sum(s.txs)                        AS txs,
+      uniqMerge(u.unique_senders_state) AS unique_senders,
+      sum(s.batch_txs)                  AS batch_txs,
+      sum(s.sponsored_txs)              AS sponsored_txs
+    FROM mv_daily_stats s
+    ANY LEFT JOIN (
+      SELECT day, uniqMerge(unique_senders_state) AS unique_senders_state
+      FROM mv_daily_uniq
+      GROUP BY day
+    ) u ON s.day = u.day
+    WHERE s.day >= today() - ${days}
+    GROUP BY s.day
+    ORDER BY s.day ASC
   `)
 
   const result = rows.map(r => ({
@@ -53,7 +62,7 @@ export async function getDailyStats(days = 30): Promise<DailyStat[]> {
     sponsored_txs: Number(r.sponsored_txs),
   }))
 
-  await setCached(key, result, 900) // 15 min
+  await setCached(key, result, 900)
   return result
 }
 
@@ -65,6 +74,7 @@ export async function getSignatureTypeStats(): Promise<SigTypeStat[]> {
   const rows = await queryClickHouse<{ signature_type: number | null; txs: string }>(`
     SELECT signature_type, count() as txs
     FROM txs
+    WHERE block_timestamp >= now() - INTERVAL 90 DAY
     GROUP BY signature_type
     ORDER BY txs DESC
   `)
@@ -105,26 +115,35 @@ export async function getNetworkSummary(): Promise<NetworkSummary> {
   const cached = await getCached<NetworkSummary>(key)
   if (cached) return cached
 
-  const rows = await queryClickHouse<{
-    total_txs: string; total_addresses: string
-    contract_deployments: string; batch_txs: string; sponsored_txs: string
-  }>(`
-    SELECT
-      count() as total_txs,
-      uniq(from) as total_addresses,
-      countIf(to IS NULL) as contract_deployments,
-      countIf(call_count > 1) as batch_txs,
-      countIf(fee_payer != from) as sponsored_txs
-    FROM txs
-  `)
+  const [statsRows, uniqRows, receiptRows] = await Promise.all([
+    queryClickHouse<{
+      total_txs: string; batch_txs: string; sponsored_txs: string
+      inscription_txs: string
+    }>(`
+      SELECT
+        sum(txs)               AS total_txs,
+        sum(batch_txs)         AS batch_txs,
+        sum(sponsored_txs)     AS sponsored_txs,
+        sum(inscription_txs)   AS inscription_txs
+      FROM mv_daily_stats
+    `),
+    queryClickHouse<{ total_addresses: string }>(`
+      SELECT uniqMerge(unique_senders_state) AS total_addresses
+      FROM mv_daily_uniq
+    `),
+    // contract deploys not in mv_daily_stats — small full scan (32K rows) is acceptable
+    queryClickHouse<{ contract_deployments: string }>(`
+      SELECT countIf(to IS NULL) AS contract_deployments FROM txs
+    `),
+  ])
 
-  const r = rows[0]
+  const s = statsRows[0]
   const result: NetworkSummary = {
-    total_txs: Number(r.total_txs),
-    total_addresses: Number(r.total_addresses),
-    contract_deployments: Number(r.contract_deployments),
-    batch_txs: Number(r.batch_txs),
-    sponsored_txs: Number(r.sponsored_txs),
+    total_txs: Number(s.total_txs),
+    total_addresses: Number(uniqRows[0].total_addresses),
+    contract_deployments: Number(receiptRows[0].contract_deployments),
+    batch_txs: Number(s.batch_txs),
+    sponsored_txs: Number(s.sponsored_txs),
   }
 
   await setCached(key, result, 900)
