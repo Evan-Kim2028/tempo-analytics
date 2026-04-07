@@ -8,7 +8,6 @@ jest.mock('@/lib/cache', () => ({
 jest.mock('viem', () => ({
   createPublicClient: jest.fn(() => ({
     getTransactionReceipt: jest.fn(),
-    getLogs: jest.fn(),
   })),
   http: jest.fn(),
   parseUnits: jest.fn((_val: string, _decimals: number) => BigInt(100000)),

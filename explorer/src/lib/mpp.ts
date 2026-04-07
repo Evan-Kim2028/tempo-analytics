@@ -59,32 +59,22 @@ export async function verifyPayment(txHash: string): Promise<PaymentVerification
       return { ok: false, error: 'Transaction failed on-chain' }
     }
 
-    const logs = await client.getLogs({
-      address: USDC_ADDRESS as `0x${string}`,
-      event: {
-        type: 'event',
-        name: 'Transfer',
-        inputs: [
-          { indexed: true, name: 'from', type: 'address' },
-          { indexed: true, name: 'to', type: 'address' },
-          { indexed: false, name: 'value', type: 'uint256' },
-        ],
-      },
-      fromBlock: receipt.blockNumber,
-      toBlock: receipt.blockNumber,
-    })
+    // Filter Transfer logs directly from receipt (no extra RPC call needed)
+    const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+    const paddedPaymentAddr = PAYMENT_ADDRESS.toLowerCase().replace('0x', '0x000000000000000000000000')
 
-    const paymentLog = logs.find(
-      log =>
-        log.transactionHash?.toLowerCase() === txHash.toLowerCase() &&
-        (log.args as { to?: string }).to?.toLowerCase() === PAYMENT_ADDRESS.toLowerCase()
+    const paymentLog = receipt.logs.find(log =>
+      log.address.toLowerCase() === USDC_ADDRESS.toLowerCase() &&
+      log.topics[0] === TRANSFER_TOPIC &&
+      log.topics[2]?.toLowerCase() === paddedPaymentAddr
     )
 
     if (!paymentLog) {
       return { ok: false, error: 'No USDC transfer to payment address found in tx' }
     }
 
-    const transferred = (paymentLog.args as { value?: bigint }).value ?? BigInt(0)
+    // Decode uint256 value from data field (32-byte ABI-encoded)
+    const transferred = BigInt(paymentLog.data)
     const minAmount = parseUnits(EXPORT_PRICE_USDC, 6)
 
     if (transferred < minAmount) {

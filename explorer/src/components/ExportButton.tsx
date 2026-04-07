@@ -20,21 +20,23 @@ export function ExportButton({ queryKey, label = 'Export CSV' }: ExportButtonPro
   async function handleExport() {
     setState('awaiting_payment')
     setError(null)
-
-    const res = await fetch('/api/export', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: queryKey }),
-    })
-
-    if (res.status === 402) {
-      const data = await res.json()
-      setChallenge(data.challenge)
-      return
+    try {
+      const res = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: queryKey }),
+      })
+      if (res.status === 402) {
+        const data = await res.json()
+        setChallenge(data.challenge)
+        return
+      }
+      setState('error')
+      setError('Export failed')
+    } catch {
+      setState('error')
+      setError('Network error — please try again')
     }
-
-    setState('error')
-    setError('Export failed')
   }
 
   async function handlePaymentSubmit() {
@@ -46,36 +48,38 @@ export function ExportButton({ queryKey, label = 'Export CSV' }: ExportButtonPro
     setState('verifying')
     setError(null)
 
-    const res = await fetch('/api/export', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Payment': txHash },
-      body: JSON.stringify({ query: queryKey }),
-    })
-
-    if (res.status === 402) {
-      const data = await res.json()
-      setState('awaiting_payment')
-      setError(data.error ?? 'Payment verification failed')
-      return
-    }
-
-    if (!res.ok) {
+    try {
+      const res = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Payment': txHash },
+        body: JSON.stringify({ query: queryKey }),
+      })
+      if (res.status === 402) {
+        const data = await res.json()
+        setState('awaiting_payment')
+        setError(data.error ?? 'Payment verification failed')
+        return
+      }
+      if (!res.ok) {
+        setState('error')
+        setError('Download failed')
+        return
+      }
+      setState('downloading')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `tempo-${queryKey}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      setState('idle')
+      setChallenge(null)
+      setTxHash('')
+    } catch {
       setState('error')
-      setError('Download failed')
-      return
+      setError('Network error — please try again')
     }
-
-    setState('downloading')
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `tempo-${queryKey}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-    setState('idle')
-    setChallenge(null)
-    setTxHash('')
   }
 
   if (state === 'awaiting_payment' && challenge) {
@@ -88,6 +92,7 @@ export function ExportButton({ queryKey, label = 'Export CSV' }: ExportButtonPro
         <p className="font-mono text-xs text-tempo-blue break-all mb-4">{challenge.recipient}</p>
         <input
           type="text"
+          aria-label="Transaction hash"
           placeholder="Paste transaction hash (0x...)"
           value={txHash}
           onChange={e => setTxHash(e.target.value)}
