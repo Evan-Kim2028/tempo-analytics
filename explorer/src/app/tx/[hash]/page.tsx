@@ -7,6 +7,7 @@ import type { TidxRow } from '@/lib/tidx'
 export const revalidate = 60
 
 async function getTx(hash: string) {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) return null
   const key = `tx:${hash}`
   const cached = await getCached<{ tx: TidxRow; receipt: TidxRow | null }>(key)
   if (cached) return cached

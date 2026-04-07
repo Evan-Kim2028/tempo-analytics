@@ -1,3 +1,4 @@
+import { notFound } from 'next/navigation'
 import { getCached, setCached } from '@/lib/cache'
 import { queryTidx } from '@/lib/tidx'
 import { AddressTxList } from '@/components/AddressTxList'
@@ -48,6 +49,7 @@ async function getAddressData(addr: string) {
 
 export default async function AddressPage({ params }: { params: Promise<{ addr: string }> }) {
   const { addr } = await params
+  if (!/^0x[0-9a-fA-F]{40}$/i.test(addr)) notFound()
   const data = await getAddressData(addr)
   const stats = data.stats as Record<string, number>
 
