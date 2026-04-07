@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: tidx
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tidx}
+      POSTGRES_DB: tidx
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    command:
+      - postgres
+      - -c
+      - max_wal_size=16GB
+      - -c
+      - checkpoint_timeout=30min
+      - -c
+      - synchronous_commit=off
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - work_mem=64MB
+      - -c
+      - wal_level=minimal
+      - -c
+      - max_wal_senders=0
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tidx -d tidx"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    ports:
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse-config.xml:/etc/clickhouse-server/config.d/custom.xml:ro
+    environment:
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  tidx:
+    platform: linux/amd64
+    image: ghcr.io/tempoxyz/tidx:latest
+    command:
+      - up
+      - --config
+      - /config.toml
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:9092:9090"
+    volumes:
+      - ./config.toml:/config.toml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    environment:
+      RUST_LOG: ${RUST_LOG:-tidx=info}
+      RUST_LOG_FORMAT: ${RUST_LOG_FORMAT:-pretty}
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  clickhouse_data:
