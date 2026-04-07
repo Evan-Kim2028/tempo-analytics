@@ -1,11 +1,13 @@
 import {
   getDailyStats, getSignatureTypeStats, getNetworkSummary, getDailyStatsCategorized,
 } from '@/lib/analytics'
+import { getInscriptionTotals } from '@/lib/inscriptions'
 import { StatCard } from '@/components/StatCard'
 import { ActivityChart } from '@/components/charts/ActivityChart'
 import { TempoFeaturesChart } from '@/components/charts/TempoFeaturesChart'
 import { SigTypePie } from '@/components/charts/SigTypePie'
 import { TxCategoryChart } from '@/components/charts/TxCategoryChart'
+import { InscriptionChart } from '@/components/charts/InscriptionChart'
 import { ExportButton } from '@/components/ExportButton'
 
 export const revalidate = 900 // 15 min
@@ -20,11 +22,12 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 }
 
 export default async function AnalyticsPage() {
-  const [daily, sigTypes, summary, categorized] = await Promise.all([
+  const [daily, sigTypes, summary, categorized, inscriptionTotals] = await Promise.all([
     getDailyStats(30),
     getSignatureTypeStats(),
     getNetworkSummary(),
     getDailyStatsCategorized(30),
+    getInscriptionTotals(),
   ])
 
   return (
@@ -70,6 +73,19 @@ export default async function AnalyticsPage() {
           <SigTypePie data={sigTypes} />
         </ChartCard>
       </div>
+
+      {/* TIP-20 inscriptions */}
+      {inscriptionTotals.length > 0 && (
+        <div className="mb-8">
+          <ChartCard title="TIP-20 Inscriptions — all-time mint volume by ticker">
+            <p className="text-tempo-muted text-xs mb-3">
+              TIP-20 inscriptions use JSON calldata — the BRC-20 pattern on Tempo.
+              Tickers like TEMP, MEME, and tempodz have active mint communities.
+            </p>
+            <InscriptionChart totals={inscriptionTotals} />
+          </ChartCard>
+        </div>
+      )}
 
       {/* Data export */}
       <div className="bg-tempo-card border border-tempo-border rounded-lg p-6">
