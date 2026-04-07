@@ -46,7 +46,6 @@ export function TxDetail({ tx, receipt, decoded }: TxDetailProps) {
         <Field label="To" value={
           tx.to ? <a href={`/address/${tx.to}`} className="text-tempo-blue hover:underline">{tx.to as string}</a> : <span className="text-yellow-400">Contract Creation</span>
         } />
-        <Field label="Value" value={`${tx.value ?? '0'} wei`} />
         <Field label="Status" value={
           receipt ? (
             Number(receipt.status) === 1
