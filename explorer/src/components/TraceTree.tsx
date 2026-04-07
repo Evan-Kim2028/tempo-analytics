@@ -1,7 +1,7 @@
 // explorer/src/components/TraceTree.tsx
 'use client'
 
-interface TraceFrame {
+export interface TraceFrame {
   depth: number
   type: string
   from: string

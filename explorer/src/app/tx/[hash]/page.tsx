@@ -5,23 +5,11 @@ import { TxDetail } from '@/components/TxDetail'
 import type { TidxRow } from '@/lib/tidx'
 import { decodeCalldata, type DecodedCalldata } from '@/lib/whatsabi'
 import { TraceTree } from '@/components/TraceTree'
+import type { TraceFrame } from '@/components/TraceTree'
 
 export const revalidate = 60
 
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
-
-interface TraceFrame {
-  depth: number
-  type: string   // CALL, STATICCALL, DELEGATECALL, CREATE
-  from: string
-  to: string
-  value: string
-  input: string
-  output: string
-  gas: string
-  gasUsed: string
-  error?: string
-}
 
 function flattenCallTrace(call: Record<string, unknown>, depth = 0): TraceFrame[] {
   const frame: TraceFrame = {
@@ -61,6 +49,7 @@ function decodeTransfers(logs: TidxRow[]): TokenTransfer[] {
 }
 
 async function getTrace(hash: string): Promise<TraceFrame[] | null> {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) return null
   const key = `trace:${hash}`
   const cached = await getCached<TraceFrame[]>(key)
   if (cached) return cached

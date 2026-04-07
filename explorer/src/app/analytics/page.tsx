@@ -1,7 +1,7 @@
 import {
   getDailyStats, getSignatureTypeStats, getNetworkSummary, getDailyStatsCategorized,
   getStablecoinDailyVolume, getDexDailyActivity, getTopDexPairs,
-  getTopNFTCollections, getNFTDailyActivity,
+  getTopNFTCollections,
 } from '@/lib/analytics'
 import { getInscriptionTotals } from '@/lib/inscriptions'
 import { StatCard } from '@/components/StatCard'
@@ -26,7 +26,7 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 }
 
 export default async function AnalyticsPage() {
-  const [daily, sigTypes, summary, categorized, inscriptionTotals, stablecoins, dexDaily, topPairs, topNFTs, nftDaily] = await Promise.all([
+  const [daily, sigTypes, summary, categorized, inscriptionTotals, stablecoins, dexDaily, topPairs, topNFTs] = await Promise.all([
     getDailyStats(30),
     getSignatureTypeStats(),
     getNetworkSummary(),
@@ -36,7 +36,6 @@ export default async function AnalyticsPage() {
     getDexDailyActivity(30),
     getTopDexPairs(10),
     getTopNFTCollections(10),
-    getNFTDailyActivity(30),
   ])
 
   return (

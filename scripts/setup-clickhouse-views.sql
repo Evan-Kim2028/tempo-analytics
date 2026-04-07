@@ -30,7 +30,10 @@ AS SELECT
     to != '0x0000000000000000000000000000000000000000'
     AND NOT startsWith(lower(input), '0x7b')
   )                                                                            AS user_txs,
-  countIf(to = '0x0000000000000000000000000000000000000000')                  AS protocol_txs,
+  countIf(
+    to = '0x0000000000000000000000000000000000000000'
+    AND NOT startsWith(lower(input), '0x7b')
+  )                                                                            AS protocol_txs,
   countIf(startsWith(lower(input), '0x7b'))                                   AS inscription_txs
 FROM tidx_4217.txs
 GROUP BY day;
@@ -112,7 +115,7 @@ SELECT
   countIf(call_count > 1),
   countIf(fee_payer != from),
   countIf(to != '0x0000000000000000000000000000000000000000' AND NOT startsWith(lower(input), '0x7b')),
-  countIf(to = '0x0000000000000000000000000000000000000000'),
+  countIf(to = '0x0000000000000000000000000000000000000000' AND NOT startsWith(lower(input), '0x7b')),
   countIf(startsWith(lower(input), '0x7b'))
 FROM tidx_4217.txs GROUP BY toDate(block_timestamp);
 

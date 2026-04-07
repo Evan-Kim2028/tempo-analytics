@@ -65,7 +65,11 @@ export async function getDailyInscriptionStats(days = 30): Promise<DailyInscript
     WHERE op = 'mint' AND tick != ''
     GROUP BY tick ORDER BY sum(count) DESC LIMIT 5
   `)
-  const tickers = topTickers.map(r => `'${r.tick}'`).join(', ')
+  const tickers = topTickers
+    .map(r => r.tick)
+    .filter(t => /^[A-Z0-9]{1,12}$/.test(t))
+    .map(t => `'${t}'`)
+    .join(', ')
 
   const rows = await queryClickHouse<{
     day: string; op: string; tick: string; count: string
