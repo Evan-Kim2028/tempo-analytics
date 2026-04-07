@@ -30,7 +30,7 @@ export function TxDetail({ tx, receipt }: TxDetailProps) {
       <dl>
         <Field label="Hash" value={tx.hash as string} />
         <Field label="Block" value={
-          <a href={`/blocks#${tx.block_num}`} className="text-tempo-blue hover:underline">
+          <a href={`/block/${tx.block_num}`} className="text-tempo-blue hover:underline">
             {String(tx.block_num)}
           </a>
         } />

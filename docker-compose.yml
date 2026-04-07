@@ -108,6 +108,7 @@ services:
       - "127.0.0.1:3000:3000"
     environment:
       TIDX_URL: http://tidx:8080
+      CLICKHOUSE_URL: http://clickhouse:8123
       REDIS_URL: redis://redis:6379
       PAYMENT_ADDRESS: ${PAYMENT_ADDRESS}
       USDC_ADDRESS: ${USDC_ADDRESS}
