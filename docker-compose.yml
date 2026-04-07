@@ -110,7 +110,7 @@ services:
       TIDX_URL: http://tidx:8080
       REDIS_URL: redis://redis:6379
       PAYMENT_ADDRESS: ${PAYMENT_ADDRESS}
-      USDC_ADDRESS: ${USDC_ADDRESS:-0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913}
+      USDC_ADDRESS: ${USDC_ADDRESS}
       NEXT_PUBLIC_CHAIN_ID: "4217"
     depends_on:
       tidx:

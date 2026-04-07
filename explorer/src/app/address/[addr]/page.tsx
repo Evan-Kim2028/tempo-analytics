@@ -7,6 +7,7 @@ import { StatCard } from '@/components/StatCard'
 export const revalidate = 60
 
 async function getAddressData(addr: string) {
+  if (!/^0x[0-9a-fA-F]{40}$/i.test(addr)) return null
   const key = `address:${addr.toLowerCase()}`
   const cached = await getCached<{ txs: unknown[]; stats: unknown }>(key)
   if (cached) return cached
@@ -49,8 +50,8 @@ async function getAddressData(addr: string) {
 
 export default async function AddressPage({ params }: { params: Promise<{ addr: string }> }) {
   const { addr } = await params
-  if (!/^0x[0-9a-fA-F]{40}$/i.test(addr)) notFound()
   const data = await getAddressData(addr)
+  if (!data) notFound()
   const stats = data.stats as Record<string, number>
 
   return (
