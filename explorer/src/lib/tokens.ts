@@ -1,5 +1,6 @@
 import { getCached, setCached } from './cache'
 import { publicClient } from './chain'
+import { getTokenFromList } from './tokenlist'
 
 export interface TokenInfo {
   address: string
@@ -55,13 +56,21 @@ const ERC20_ABI = [
 
 export async function getTokenInfo(address: string): Promise<TokenInfo | null> {
   const lower = address.toLowerCase()
+
+  // 1. Instant local lookup (genesis/system tokens)
   const known = KNOWN_TOKENS[lower]
   if (known) return known
 
+  // 2. Live tokenlist (verified tokens, 1h cache)
+  const listed = await getTokenFromList(lower)
+  if (listed) return listed
+
+  // 3. Redis cache (previously RPC-fetched unknowns)
   const cacheKey = `token:meta:${lower}`
   const cached = await getCached<TokenInfo>(cacheKey)
   if (cached) return cached
 
+  // 4. RPC fallback for unknown contracts
   try {
     const [symbol, name, decimals] = await Promise.all([
       publicClient.readContract({ address: lower as `0x${string}`, abi: ERC20_ABI, functionName: 'symbol' }),
@@ -69,7 +78,7 @@ export async function getTokenInfo(address: string): Promise<TokenInfo | null> {
       publicClient.readContract({ address: lower as `0x${string}`, abi: ERC20_ABI, functionName: 'decimals' }),
     ])
     const info: TokenInfo = { address: lower, symbol: symbol as string, name: name as string, decimals: decimals as number }
-    await setCached(cacheKey, info, 86400) // 24h — token metadata is stable
+    await setCached(cacheKey, info, 86400)
     return info
   } catch {
     return null
@@ -84,4 +93,27 @@ export function formatTokenAmount(raw: bigint, decimals: number): string {
   const float = Number(raw) / divisor
   if (float >= 1_000_000) return COMPACT.format(float)
   return FIXED2.format(float)
+}
+
+const TOTAL_SUPPLY_ABI = [
+  { name: 'totalSupply', type: 'function', inputs: [], outputs: [{ type: 'uint256' }], stateMutability: 'view' },
+] as const
+
+export async function getTokenSupply(address: string): Promise<bigint | null> {
+  const lower = address.toLowerCase()
+  const cacheKey = `token:supply:${lower}`
+  const cached = await getCached<string>(cacheKey)
+  if (cached) return BigInt(cached)
+
+  try {
+    const supply = await publicClient.readContract({
+      address: lower as `0x${string}`,
+      abi: TOTAL_SUPPLY_ABI,
+      functionName: 'totalSupply',
+    })
+    await setCached(cacheKey, String(supply), 900) // 15 min
+    return supply as bigint
+  } catch {
+    return null
+  }
 }
