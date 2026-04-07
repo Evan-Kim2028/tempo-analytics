@@ -1,10 +1,11 @@
 import {
-  getDailyStats, getSignatureTypeStats, getNetworkSummary,
+  getDailyStats, getSignatureTypeStats, getNetworkSummary, getDailyStatsCategorized,
 } from '@/lib/analytics'
 import { StatCard } from '@/components/StatCard'
 import { ActivityChart } from '@/components/charts/ActivityChart'
 import { TempoFeaturesChart } from '@/components/charts/TempoFeaturesChart'
 import { SigTypePie } from '@/components/charts/SigTypePie'
+import { TxCategoryChart } from '@/components/charts/TxCategoryChart'
 import { ExportButton } from '@/components/ExportButton'
 
 export const revalidate = 900 // 15 min
@@ -19,10 +20,11 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 }
 
 export default async function AnalyticsPage() {
-  const [daily, sigTypes, summary] = await Promise.all([
+  const [daily, sigTypes, summary, categorized] = await Promise.all([
     getDailyStats(30),
     getSignatureTypeStats(),
     getNetworkSummary(),
+    getDailyStatsCategorized(30),
   ])
 
   return (
@@ -45,6 +47,17 @@ export default async function AnalyticsPage() {
       <div className="mb-6">
         <ChartCard title="Daily Activity — last 30 days">
           <ActivityChart data={daily} />
+        </ChartCard>
+      </div>
+
+      {/* Transaction category breakdown */}
+      <div className="mb-6">
+        <ChartCard title="Transaction Breakdown — user vs protocol vs inscriptions">
+          <p className="text-tempo-muted text-xs mb-3">
+            ~84% of Tempo transactions are protocol-level operations (block records, consensus).
+            User and inscription activity is shown separately.
+          </p>
+          <TxCategoryChart data={categorized} />
         </ChartCard>
       </div>
 

@@ -110,6 +110,13 @@ export async function getFeeTokenStats(): Promise<FeeTokenStat[]> {
   return result
 }
 
+export interface DailyStatCategorized {
+  day: string
+  user_txs: number
+  protocol_txs: number
+  inscription_txs: number
+}
+
 export async function getNetworkSummary(): Promise<NetworkSummary> {
   const key = 'analytics:summary'
   const cached = await getCached<NetworkSummary>(key)
@@ -145,6 +152,36 @@ export async function getNetworkSummary(): Promise<NetworkSummary> {
     batch_txs: Number(s.batch_txs),
     sponsored_txs: Number(s.sponsored_txs),
   }
+
+  await setCached(key, result, 900)
+  return result
+}
+
+export async function getDailyStatsCategorized(days = 30): Promise<DailyStatCategorized[]> {
+  const key = `analytics:categorized:${days}`
+  const cached = await getCached<DailyStatCategorized[]>(key)
+  if (cached) return cached
+
+  const rows = await queryClickHouse<{
+    day: string; user_txs: string; protocol_txs: string; inscription_txs: string
+  }>(`
+    SELECT
+      day,
+      sum(user_txs)        AS user_txs,
+      sum(protocol_txs)    AS protocol_txs,
+      sum(inscription_txs) AS inscription_txs
+    FROM mv_daily_stats
+    WHERE day >= today() - ${days}
+    GROUP BY day
+    ORDER BY day ASC
+  `)
+
+  const result = rows.map(r => ({
+    day: String(r.day).slice(0, 10),
+    user_txs: Number(r.user_txs),
+    protocol_txs: Number(r.protocol_txs),
+    inscription_txs: Number(r.inscription_txs),
+  }))
 
   await setCached(key, result, 900)
   return result
