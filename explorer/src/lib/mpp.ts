@@ -1,15 +1,7 @@
-import { createPublicClient, http, parseUnits, defineChain } from 'viem'
+import { parseUnits } from 'viem'
 import { getCached, setCached } from '@/lib/cache'
+import { publicClient } from '@/lib/chain'
 import { randomBytes } from 'crypto'
-
-const tempo = defineChain({
-  id: 4217,
-  name: 'Tempo',
-  nativeCurrency: { name: 'Tempo', symbol: 'TEMPO', decimals: 18 },
-  rpcUrls: {
-    default: { http: ['https://rpc.mainnet.tempo.xyz'] },
-  },
-})
 
 const EXPORT_PRICE_USDC = '0.10'
 
@@ -49,9 +41,7 @@ export async function verifyPayment(txHash: string): Promise<PaymentVerification
   }
 
   try {
-    const client = createPublicClient({ chain: tempo, transport: http() })
-
-    const receipt = await client.getTransactionReceipt({
+    const receipt = await publicClient.getTransactionReceipt({
       hash: txHash as `0x${string}`,
     })
 

@@ -1,3 +1,5 @@
+import type { DecodedCalldata } from '@/lib/whatsabi'
+
 const SIG_TYPES: Record<number, string> = {
   0: 'Secp256k1 (standard EVM)',
   1: 'P256 (hardware key)',
@@ -7,6 +9,7 @@ const SIG_TYPES: Record<number, string> = {
 interface TxDetailProps {
   tx: Record<string, string | number | null>
   receipt: Record<string, string | number | null> | null
+  decoded?: DecodedCalldata | null
 }
 
 function Field({ label, value, mono = true }: { label: string; value: React.ReactNode; mono?: boolean }) {
@@ -20,7 +23,7 @@ function Field({ label, value, mono = true }: { label: string; value: React.Reac
   )
 }
 
-export function TxDetail({ tx, receipt }: TxDetailProps) {
+export function TxDetail({ tx, receipt, decoded }: TxDetailProps) {
   const sigType = tx.signature_type != null ? (SIG_TYPES[Number(tx.signature_type)] ?? `Type ${tx.signature_type}`) : null
   const isSponsored = tx.fee_payer && tx.fee_payer !== tx.from
   const hasBatchCalls = Number(tx.call_count ?? 0) > 0
@@ -63,6 +66,22 @@ export function TxDetail({ tx, receipt }: TxDetailProps) {
         )}
         {tx.valid_before && <Field label="Valid Before" value={tx.valid_before as string} />}
         {tx.valid_after && <Field label="Valid After" value={tx.valid_after as string} />}
+        {decoded && (
+          <Field
+            label="Function"
+            value={
+              <span>
+                {decoded.functionName}
+                {decoded.args && decoded.args.length > 0 && (
+                  <span className="text-tempo-muted ml-2 text-xs">
+                    ({decoded.args.slice(0, 3).join(', ')}{decoded.args.length > 3 ? ', …' : ''})
+                  </span>
+                )}
+              </span>
+            }
+            mono={false}
+          />
+        )}
         <Field label="Nonce Key" value={tx.nonce_key as string | null} />
         <Field label="Nonce" value={tx.nonce != null ? String(tx.nonce) : null} />
         {receipt && <Field label="Gas Used" value={String(receipt.gas_used)} />}

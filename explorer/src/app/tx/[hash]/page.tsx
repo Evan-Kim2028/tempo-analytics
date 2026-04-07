@@ -3,6 +3,7 @@ import { getCached, setCached } from '@/lib/cache'
 import { queryTidx } from '@/lib/tidx'
 import { TxDetail } from '@/components/TxDetail'
 import type { TidxRow } from '@/lib/tidx'
+import { decodeCalldata, type DecodedCalldata } from '@/lib/whatsabi'
 
 export const revalidate = 60
 
@@ -31,7 +32,7 @@ function decodeTransfers(logs: TidxRow[]): TokenTransfer[] {
 async function getTx(hash: string) {
   if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) return null
   const key = `tx:${hash}`
-  const cached = await getCached<{ tx: TidxRow; receipt: TidxRow | null; transfers: TokenTransfer[] }>(key)
+  const cached = await getCached<{ tx: TidxRow; receipt: TidxRow | null; transfers: TokenTransfer[]; decoded: DecodedCalldata | null }>(key)
   if (cached) return cached
 
   const [txResult, receiptResult, logsResult] = await Promise.all([
@@ -48,10 +49,16 @@ async function getTx(hash: string) {
 
   if (!txResult.rows.length) return null
 
+  const decoded = await decodeCalldata(
+    txResult.rows[0].to as string | null,
+    txResult.rows[0].input as string,
+  )
+
   const data = {
     tx: txResult.rows[0],
     receipt: receiptResult.rows[0] ?? null,
     transfers: decodeTransfers(logsResult.rows),
+    decoded,
   }
   await setCached(key, data, 60)
   return data
@@ -66,7 +73,7 @@ export default async function TxPage({ params }: { params: Promise<{ hash: strin
     <div>
       <h1 className="text-xl font-semibold text-white mb-2">Transaction</h1>
       <p className="text-tempo-muted font-mono text-sm mb-6 break-all">{hash}</p>
-      <TxDetail tx={data.tx} receipt={data.receipt} />
+      <TxDetail tx={data.tx} receipt={data.receipt} decoded={data.decoded} />
 
       {data.transfers.length > 0 && (
         <div className="mt-8">
