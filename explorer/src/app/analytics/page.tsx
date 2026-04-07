@@ -1,5 +1,7 @@
 import {
   getDailyStats, getSignatureTypeStats, getNetworkSummary, getDailyStatsCategorized,
+  getStablecoinDailyVolume, getDexDailyActivity, getTopDexPairs,
+  getTopNFTCollections, getNFTDailyActivity,
 } from '@/lib/analytics'
 import { getInscriptionTotals } from '@/lib/inscriptions'
 import { StatCard } from '@/components/StatCard'
@@ -8,6 +10,8 @@ import { TempoFeaturesChart } from '@/components/charts/TempoFeaturesChart'
 import { SigTypePie } from '@/components/charts/SigTypePie'
 import { TxCategoryChart } from '@/components/charts/TxCategoryChart'
 import { InscriptionChart } from '@/components/charts/InscriptionChart'
+import { StablecoinVolumeChart } from '@/components/charts/StablecoinVolumeChart'
+import { DexActivityChart } from '@/components/charts/DexActivityChart'
 import { ExportButton } from '@/components/ExportButton'
 
 export const revalidate = 900 // 15 min
@@ -22,12 +26,17 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 }
 
 export default async function AnalyticsPage() {
-  const [daily, sigTypes, summary, categorized, inscriptionTotals] = await Promise.all([
+  const [daily, sigTypes, summary, categorized, inscriptionTotals, stablecoins, dexDaily, topPairs, topNFTs, nftDaily] = await Promise.all([
     getDailyStats(30),
     getSignatureTypeStats(),
     getNetworkSummary(),
     getDailyStatsCategorized(30),
     getInscriptionTotals(),
+    getStablecoinDailyVolume(30),
+    getDexDailyActivity(30),
+    getTopDexPairs(10),
+    getTopNFTCollections(10),
+    getNFTDailyActivity(30),
   ])
 
   return (
@@ -86,6 +95,56 @@ export default async function AnalyticsPage() {
           </ChartCard>
         </div>
       )}
+
+      {/* Stablecoin transfer volume */}
+      <div className="mb-6">
+        <ChartCard title="Stablecoin Transfer Volume — pathUSD & USDC.e daily">
+          <p className="text-tempo-muted text-xs mb-3">
+            pathUSD (supply: ~$3.94M) and USDC.e (supply: ~$2.54M) are the primary fee-paying
+            stablecoins. High velocity: total on-chain volume far exceeds supply.
+          </p>
+          <StablecoinVolumeChart data={stablecoins} />
+        </ChartCard>
+      </div>
+
+      {/* DEX + NFT side by side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <ChartCard title="DEX Activity — daily swaps (Uniswap V2-compatible)">
+          <p className="text-tempo-muted text-xs mb-3">
+            Community-deployed V2 AMMs. Top pair: TIMECOIN/USDC.e.
+            USD volume tracking requires per-pair token mapping (coming soon).
+          </p>
+          <DexActivityChart data={dexDaily} />
+          {topPairs.length > 0 && (
+            <div className="mt-4 space-y-1">
+              {topPairs.map(p => (
+                <div key={p.pair} className="flex justify-between text-xs">
+                  <a href={`/address/${p.pair}`} className="font-mono text-tempo-blue hover:underline">
+                    {p.pair.slice(0, 10)}…{p.pair.slice(-6)}
+                  </a>
+                  <span className="text-tempo-muted">{p.total_swaps.toLocaleString()} swaps</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </ChartCard>
+
+        <ChartCard title="NFT Activity — top ERC-721 collections">
+          <div className="space-y-2">
+            {topNFTs.map(c => (
+              <div key={c.collection} className="flex items-center justify-between text-xs">
+                <a href={`/address/${c.collection}`} className="font-mono text-tempo-blue hover:underline">
+                  {c.collection.slice(0, 10)}…{c.collection.slice(-6)}
+                </a>
+                <div className="text-right">
+                  <span className="text-white">{c.total_transfers.toLocaleString()}</span>
+                  <span className="text-tempo-muted ml-2">{c.days_active}d active</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </ChartCard>
+      </div>
 
       {/* Data export */}
       <div className="bg-tempo-card border border-tempo-border rounded-lg p-6">
