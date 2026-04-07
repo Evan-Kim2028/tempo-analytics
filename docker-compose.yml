@@ -74,6 +74,40 @@ services:
       RUST_LOG_FORMAT: ${RUST_LOG_FORMAT:-pretty}
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      - explorer
+    restart: unless-stopped
+
+  explorer:
+    build: ./explorer
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      TIDX_URL: http://tidx:8080
+      REDIS_URL: redis://redis:6379
+      PAYMENT_ADDRESS: ${PAYMENT_ADDRESS}
+      USDC_ADDRESS: ${USDC_ADDRESS:-0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913}
+      NEXT_PUBLIC_CHAIN_ID: "4217"
+    depends_on:
+      - tidx
+      - redis
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   clickhouse_data:
+  redis_data:
+  nginx_cache:
