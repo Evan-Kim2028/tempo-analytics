@@ -10,23 +10,34 @@ export const revalidate = 60
 
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
 
-export interface TraceStructLog {
-  pc: number
-  op: string
-  gas: number
-  gasCost: number
+interface TraceFrame {
   depth: number
-  stack: string[]
-  memory: string[]
-  storage: Record<string, string>
-  reason?: string
+  type: string   // CALL, STATICCALL, DELEGATECALL, CREATE
+  from: string
+  to: string
+  value: string
+  input: string
+  output: string
+  gas: string
+  gasUsed: string
+  error?: string
 }
 
-export interface TraceResult {
-  failed: boolean
-  gas: number
-  returnValue: string
-  structLogs: TraceStructLog[]
+function flattenCallTrace(call: Record<string, unknown>, depth = 0): TraceFrame[] {
+  const frame: TraceFrame = {
+    depth,
+    type: String(call.type ?? 'CALL'),
+    from: String(call.from ?? ''),
+    to: String(call.to ?? ''),
+    value: String(call.value ?? '0x0'),
+    input: String(call.input ?? '0x'),
+    output: String(call.output ?? '0x'),
+    gas: String(call.gas ?? '0x0'),
+    gasUsed: String(call.gasUsed ?? '0x0'),
+    error: call.error ? String(call.error) : undefined,
+  }
+  const calls = Array.isArray(call.calls) ? call.calls : []
+  return [frame, ...calls.flatMap((c: Record<string, unknown>) => flattenCallTrace(c, depth + 1))]
 }
 
 interface TokenTransfer {
@@ -49,31 +60,27 @@ function decodeTransfers(logs: TidxRow[]): TokenTransfer[] {
     }))
 }
 
-async function getTrace(hash: string): Promise<TraceResult | null> {
+async function getTrace(hash: string): Promise<TraceFrame[] | null> {
   const key = `trace:${hash}`
-  const cached = await getCached<TraceResult>(key)
+  const cached = await getCached<TraceFrame[]>(key)
   if (cached) return cached
 
   try {
-    const rpcUrl = process.env.TEMPO_RPC_URL ?? 'https://rpc.mainnet.tempo.xyz'
-    const response = await fetch(rpcUrl, {
+    const res = await fetch(process.env.TEMPO_RPC_URL ?? 'https://rpc.mainnet.tempo.xyz', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         jsonrpc: '2.0',
         method: 'debug_traceTransaction',
-        params: [hash, {}],
+        params: [hash, { tracer: 'callTracer' }],
         id: 1,
       }),
-      cache: 'force-cache',
+      cache: 'no-store',
     })
+    const data = await res.json()
+    if (data.error || !data.result) return null
 
-    const result = await response.json()
-    if (result.error || !result.result) {
-      return null
-    }
-
-    const trace = result.result as TraceResult
+    const trace = flattenCallTrace(data.result)
     await setCached(key, trace, 3600)
     return trace
   } catch {
@@ -84,7 +91,7 @@ async function getTrace(hash: string): Promise<TraceResult | null> {
 async function getTx(hash: string) {
   if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) return null
   const key = `tx:${hash}`
-  const cached = await getCached<{ tx: TidxRow; receipt: TidxRow | null; transfers: TokenTransfer[]; decoded: DecodedCalldata | null; trace: TraceResult | null }>(key)
+  const cached = await getCached<{ tx: TidxRow; receipt: TidxRow | null; transfers: TokenTransfer[]; decoded: DecodedCalldata | null; trace: TraceFrame[] | null }>(key)
   if (cached) return cached
 
   const [txResult, receiptResult, logsResult, trace] = await Promise.all([
@@ -173,12 +180,12 @@ export default async function TxPage({ params }: { params: Promise<{ hash: strin
         </div>
       )}
 
-      {data.trace && data.trace.structLogs.length > 0 && (
+      {data.trace && data.trace.length > 0 && (
         <div className="mt-8">
           <h2 className="text-lg font-medium text-white mb-4">
-            Execution Trace ({data.trace.structLogs.length} ops)
+            Call Trace ({data.trace.length} frames)
           </h2>
-          <TraceTree trace={data.trace} />
+          <TraceTree frames={data.trace} />
         </div>
       )}
     </div>
