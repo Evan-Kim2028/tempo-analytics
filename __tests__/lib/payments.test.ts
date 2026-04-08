@@ -1,8 +1,29 @@
+jest.mock('@/lib/clickhouse', () => ({ queryClickHouse: jest.fn() }))
+jest.mock('@/lib/cache', () => ({
+  getCached: jest.fn(),
+  setCached: jest.fn(),
+}))
+
+import { queryClickHouse } from '@/lib/clickhouse'
+import { getCached, setCached } from '@/lib/cache'
 import {
   classifyMemoFamily,
   decodeMemoHex,
   PAYMENT_METHODS,
+  getRecentPayments,
 } from '@/lib/payments'
+
+const mockQuery = queryClickHouse as jest.Mock
+const mockGetCached = getCached as jest.Mock
+const mockSetCached = setCached as jest.Mock
+
+beforeEach(() => {
+  mockQuery.mockReset()
+  mockGetCached.mockReset()
+  mockSetCached.mockReset()
+  mockGetCached.mockResolvedValue(null)
+  mockSetCached.mockResolvedValue(undefined)
+})
 
 test('exports the confirmed pathUSD payment rail', () => {
   expect(PAYMENT_METHODS).toContainEqual({
@@ -73,4 +94,70 @@ test('classifies readable memo families', () => {
   expect(classifyMemoFamily('FullSettlement')).toBe('Full*')
   expect(classifyMemoFamily('')).toBeNull()
   expect(classifyMemoFamily(null)).toBeNull()
+})
+
+test('merges successful memo events and failed direct calls into one recent-payments list', async () => {
+  mockQuery
+    .mockResolvedValueOnce([
+      {
+        block_timestamp: '2026-04-08 12:00:00',
+        tx_hash: '0xsuccess',
+        sender: '0x1111111111111111111111111111111111111111',
+        recipient: '0x2222222222222222222222222222222222222222',
+        token: '0x20c0000000000000000000000000000000000000',
+        amount_raw: '1250000',
+        memo_hex: '0x534f432d30307a66393162640000000000000000000000000000000000000000',
+      },
+    ])
+    .mockResolvedValueOnce([
+      {
+        block_timestamp: '2026-04-08 12:05:00',
+        tx_hash: '0xfailed',
+        sender: '0x3333333333333333333333333333333333333333',
+        recipient: '0x4444444444444444444444444444444444444444',
+        token: '0x20c0000000000000000000000000000000000000',
+        amount_raw: '990000',
+        memo_hex: '0xff00aa0000000000000000000000000000000000000000000000000000000000',
+      },
+    ])
+
+  await expect(getRecentPayments(10)).resolves.toEqual([
+    expect.objectContaining({
+      tx_hash: '0xfailed',
+      status: 'failed',
+      amount: 0.99,
+      memo_kind: 'opaque',
+      memo_family: null,
+    }),
+    expect.objectContaining({
+      tx_hash: '0xsuccess',
+      status: 'success',
+      amount: 1.25,
+      memo_text: 'SOC-00zf91bd',
+      memo_family: 'SOC-*',
+    }),
+  ])
+})
+
+test('reads recent payments from cache before querying clickhouse', async () => {
+  mockGetCached.mockResolvedValueOnce([
+    {
+      timestamp: '2026-04-08 12:00:00',
+      day: '2026-04-08',
+      tx_hash: '0xcached',
+      sender: '0x1111111111111111111111111111111111111111',
+      recipient: '0x2222222222222222222222222222222222222222',
+      token: '0x20c0000000000000000000000000000000000000',
+      token_label: 'pathUSD',
+      amount: 2.5,
+      status: 'success',
+      memo_hex: '0x534f432d63616368656400000000000000000000000000000000000000000000',
+      memo_text: 'SOC-cached',
+      memo_kind: 'readable',
+      memo_family: 'SOC-*',
+    },
+  ])
+
+  await expect(getRecentPayments(25)).resolves.toHaveLength(1)
+  expect(mockQuery).not.toHaveBeenCalled()
 })
