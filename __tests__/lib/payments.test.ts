@@ -38,6 +38,35 @@ test('treats zero bytes as an empty memo', () => {
   })
 })
 
+test('treats malformed hex input as opaque', () => {
+  expect(decodeMemoHex('0x414243zz')).toEqual({
+    memo_hex: '0x414243zz',
+    memo_text: null,
+    memo_kind: 'opaque',
+  })
+  expect(decodeMemoHex('0xgg')).toEqual({
+    memo_hex: '0xgg',
+    memo_text: null,
+    memo_kind: 'opaque',
+  })
+})
+
+test('normalizes non-0x input to an empty memo', () => {
+  expect(decodeMemoHex('abcdef')).toEqual({
+    memo_hex: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    memo_text: null,
+    memo_kind: 'empty',
+  })
+})
+
+test('preserves spaces in printable memo text', () => {
+  expect(decodeMemoHex('0x536f63204d656d6f000000000000000000000000000000000000000000000000')).toEqual({
+    memo_hex: '0x536f63204d656d6f000000000000000000000000000000000000000000000000',
+    memo_text: 'Soc Memo',
+    memo_kind: 'readable',
+  })
+})
+
 test('classifies readable memo families', () => {
   expect(classifyMemoFamily('SOC-00zf91bd')).toBe('SOC-*')
   expect(classifyMemoFamily('daily-2026-04-08')).toBe('daily-*')

@@ -35,7 +35,12 @@ export function decodeMemoHex(memoHex: string): {
     return { memo_hex: ZERO_MEMO, memo_text: null, memo_kind: 'empty' }
   }
 
-  const bytes = Buffer.from(normalized.slice(2).padEnd(64, '0').slice(0, 64), 'hex')
+  const hexBody = normalized.slice(2)
+  if (!/^[0-9a-f]*$/i.test(hexBody)) {
+    return { memo_hex: normalized, memo_text: null, memo_kind: 'opaque' }
+  }
+
+  const bytes = Buffer.from(hexBody.padEnd(64, '0').slice(0, 64), 'hex')
   if (!isPrintableAscii(bytes)) {
     return { memo_hex: normalized, memo_text: null, memo_kind: 'opaque' }
   }
