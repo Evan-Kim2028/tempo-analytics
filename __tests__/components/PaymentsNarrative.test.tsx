@@ -36,6 +36,9 @@ test('renders the payments charts and concentration sections', () => {
           readable_memos: 5,
           opaque_memos: 9,
           empty_memos: 0,
+          soc_memos: 2,
+          ef1e_memos: 2,
+          mpps_memos: 1,
         },
       ]}
       topRecipientsByAmount={[

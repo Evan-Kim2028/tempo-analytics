@@ -50,6 +50,9 @@ export interface PaymentsDailyPoint {
   readable_memos: number
   opaque_memos: number
   empty_memos: number
+  soc_memos: number
+  ef1e_memos: number
+  mpps_memos: number
 }
 
 export interface PaymentCounterpartyRow {
@@ -86,6 +89,9 @@ interface RawPaymentDailyMetricRow {
   readable_memos: string | number
   opaque_memos: string | number
   empty_memos: string | number
+  soc_memos?: string | number
+  ef1e_memos?: string | number
+  mpps_memos?: string | number
 }
 
 interface RawPaymentActorCountRow {
@@ -132,6 +138,18 @@ export function decodeMemoHex(memoHex: string): {
     return { memo_hex: ZERO_MEMO, memo_text: null, memo_kind: 'empty' }
   }
 
+  // ef1e binary: [magic ef1ed712][1-byte version][10-byte account_id][17-byte tail]
+  if (normalized.length === 66 && normalized.startsWith('0xef1ed712')) {
+    const version = parseInt(normalized.slice(10, 12), 16)
+    const accountId = normalized.slice(12, 32)
+    return { memo_hex: normalized, memo_text: `ef1e:v${version}:${accountId}`, memo_kind: 'readable' }
+  }
+
+  // mpps:hafu binary: [ASCII prefix "mppshafu" 8 bytes][24-byte crypto tail]
+  if (normalized.length === 66 && normalized.startsWith('0x6d70707368616675')) {
+    return { memo_hex: normalized, memo_text: 'mpps:hafu', memo_kind: 'readable' }
+  }
+
   const hexBody = normalized.slice(2)
   if (!/^[0-9a-f]*$/i.test(hexBody)) {
     return { memo_hex: normalized, memo_text: null, memo_kind: 'opaque' }
@@ -152,6 +170,8 @@ export function decodeMemoHex(memoHex: string): {
 
 export function classifyMemoFamily(memoText: string | null): string | null {
   if (!memoText) return null
+  if (/^ef1e:/i.test(memoText)) return 'ef1e:*'
+  if (/^mpps:/i.test(memoText)) return 'mpps:*'
   if (/^SOC-/i.test(memoText)) return 'SOC-*'
   if (/^daily-/i.test(memoText)) return 'daily-*'
   if (/^Full/i.test(memoText)) return 'Full*'
@@ -421,7 +441,10 @@ export async function getPaymentsDaily(days = 30): Promise<PaymentsDailyPoint[]>
         sum(total_amount) AS total_amount,
         sum(readable_memos) AS readable_memos,
         sum(opaque_memos) AS opaque_memos,
-        sum(empty_memos) AS empty_memos
+        sum(empty_memos) AS empty_memos,
+        sum(soc_memos) AS soc_memos,
+        sum(ef1e_memos) AS ef1e_memos,
+        sum(mpps_memos) AS mpps_memos
       FROM mv_memo_payments_daily
       WHERE day >= today() - ${days}
       GROUP BY day
@@ -444,6 +467,9 @@ export async function getPaymentsDaily(days = 30): Promise<PaymentsDailyPoint[]>
       readable_memos: toNumber(row.readable_memos),
       opaque_memos: toNumber(row.opaque_memos),
       empty_memos: toNumber(row.empty_memos),
+      soc_memos: toNumber(row.soc_memos),
+      ef1e_memos: toNumber(row.ef1e_memos),
+      mpps_memos: toNumber(row.mpps_memos),
     }
   })
 

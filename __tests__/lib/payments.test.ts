@@ -97,7 +97,25 @@ test('preserves spaces in printable memo text', () => {
   })
 })
 
+test('decodes ef1e binary memo to structured text', () => {
+  expect(decodeMemoHex('0xef1ed71201630749f5dd47df21c5a600000000000000000000de055c813575c3')).toEqual({
+    memo_hex: '0xef1ed71201630749f5dd47df21c5a600000000000000000000de055c813575c3',
+    memo_text: 'ef1e:v1:630749f5dd47df21c5a6',
+    memo_kind: 'readable',
+  })
+})
+
+test('decodes mpps:hafu binary memo to structured text', () => {
+  expect(decodeMemoHex('0x6d70707368616675f730b43ba122562720903e022fe222eaea6806aae9fb56d6')).toEqual({
+    memo_hex: '0x6d70707368616675f730b43ba122562720903e022fe222eaea6806aae9fb56d6',
+    memo_text: 'mpps:hafu',
+    memo_kind: 'readable',
+  })
+})
+
 test('classifies readable memo families', () => {
+  expect(classifyMemoFamily('ef1e:v1:630749f5dd47df21c5a6')).toBe('ef1e:*')
+  expect(classifyMemoFamily('mpps:hafu')).toBe('mpps:*')
   expect(classifyMemoFamily('SOC-00zf91bd')).toBe('SOC-*')
   expect(classifyMemoFamily('daily-2026-04-08')).toBe('daily-*')
   expect(classifyMemoFamily('FullSettlement')).toBe('Full*')
@@ -283,6 +301,9 @@ test('getPaymentsDaily(30) maps daily rollups plus exact actor counts', async ()
         readable_memos: '1',
         opaque_memos: '1',
         empty_memos: '1',
+        soc_memos: '0',
+        ef1e_memos: '1',
+        mpps_memos: '0',
       },
       {
         day: '2026-04-08',
@@ -292,6 +313,9 @@ test('getPaymentsDaily(30) maps daily rollups plus exact actor counts', async ()
         readable_memos: '1',
         opaque_memos: '0',
         empty_memos: '0',
+        soc_memos: '1',
+        ef1e_memos: '0',
+        mpps_memos: '0',
       },
     ])
     .mockResolvedValueOnce([
@@ -318,6 +342,9 @@ test('getPaymentsDaily(30) maps daily rollups plus exact actor counts', async ()
       readable_memos: 1,
       opaque_memos: 1,
       empty_memos: 1,
+      soc_memos: 0,
+      ef1e_memos: 1,
+      mpps_memos: 0,
     },
     {
       day: '2026-04-08',
@@ -329,6 +356,9 @@ test('getPaymentsDaily(30) maps daily rollups plus exact actor counts', async ()
       readable_memos: 1,
       opaque_memos: 0,
       empty_memos: 0,
+      soc_memos: 1,
+      ef1e_memos: 0,
+      mpps_memos: 0,
     },
   ])
 })
@@ -394,6 +424,9 @@ test('getPaymentsPageData() assembles summary, daily, recent, and counterparty l
         readable_memos: '2',
         opaque_memos: '2',
         empty_memos: '1',
+        soc_memos: '1',
+        ef1e_memos: '1',
+        mpps_memos: '0',
       },
     ])
     .mockResolvedValueOnce([
@@ -467,6 +500,9 @@ test('getPaymentsPageData() assembles summary, daily, recent, and counterparty l
         readable_memos: 2,
         opaque_memos: 2,
         empty_memos: 1,
+        soc_memos: 1,
+        ef1e_memos: 1,
+        mpps_memos: 0,
       },
     ],
     recent: [
