@@ -84,7 +84,7 @@ Replace `StablecoinTVLChart` (which shows volume, not TVL — a mislabeled dupli
 **App-layer query (`getStablecoinSupplyHistory`):**
 - Fetch daily net changes for the last N days
 - Compute cumulative sum per token to derive supply at each day
-- Divide raw values by token decimals (6 for both pathUSD and USDC.e)
+- Divide raw values by `1e6` (6 decimals for both pathUSD and USDC.e)
 - Returns: `{ day: string, pathUSD: number, usdc_e: number }[]`
 
 **Chart:** Stacked area, same styling as existing charts. Y-axis in compact USD notation. Two series: pathUSD (green) and USDC.e (blue).
@@ -179,7 +179,7 @@ A backfill query will also be added to `sql/clickhouse/backfills/erc20-and-dex.s
 
 ### `getStablecoinSupplyHistory` in `src/lib/analytics.ts`
 
-New exported function. Queries `mv_stablecoin_supply_daily`, computes running cumulative sum per token, divides by `1e18`, and returns shaped data for the chart. Cached at 900s.
+New exported function. Queries `mv_stablecoin_supply_daily`, computes running cumulative sum per token, divides by `1e6`, and returns shaped data for the chart. Cached at 900s.
 
 ---
 

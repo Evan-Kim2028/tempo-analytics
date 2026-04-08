@@ -14,6 +14,12 @@ export default function StablecoinsLoading() {
         <div className="bg-tempo-card border border-tempo-border rounded-lg p-5 h-24 animate-pulse" />
       </div>
 
+      {/* Supply chart */}
+      <div className="bg-tempo-card border border-tempo-border rounded-lg h-[340px] animate-pulse mb-8" />
+
+      {/* Volume chart */}
+      <div className="bg-tempo-card border border-tempo-border rounded-lg h-[340px] animate-pulse mb-8" />
+
       {/* Table */}
       <div className="bg-tempo-card border border-tempo-border rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-tempo-border">
