@@ -15,27 +15,34 @@ async function getAddressData(addr: string) {
   if (cached) return cached
 
   const lowerAddr = addr.toLowerCase()
+  const hexAddr = lowerAddr.slice(2) // strip 0x for decode(); bytea columns need decode('hex...', 'hex')
 
   const [txResult, statsResult, sponsoredResult] = await Promise.all([
     queryTidx(`
-      SELECT block_num, block_timestamp, hash, "from", "to", value,
-             signature_type, fee_token, fee_payer, call_count
+      SELECT block_num, block_timestamp,
+             '0x' || encode(hash, 'hex') AS hash,
+             '0x' || encode("from", 'hex') AS "from",
+             '0x' || encode("to", 'hex') AS "to",
+             value, signature_type,
+             '0x' || encode(fee_token, 'hex') AS fee_token,
+             '0x' || encode(fee_payer, 'hex') AS fee_payer,
+             call_count
       FROM txs
-      WHERE lower("from") = '${lowerAddr}' OR lower("to") = '${lowerAddr}'
+      WHERE "from" = decode('${hexAddr}', 'hex') OR "to" = decode('${hexAddr}', 'hex')
       ORDER BY block_num DESC
       LIMIT 50
     `),
     queryTidx(`
       SELECT COUNT(*) as total,
-             SUM(CASE WHEN lower("from") = '${lowerAddr}' THEN 1 ELSE 0 END) as sent,
-             SUM(CASE WHEN lower("to") = '${lowerAddr}' THEN 1 ELSE 0 END) as received
+             SUM(CASE WHEN "from" = decode('${hexAddr}', 'hex') THEN 1 ELSE 0 END) as sent,
+             SUM(CASE WHEN "to" = decode('${hexAddr}', 'hex') THEN 1 ELSE 0 END) as received
       FROM txs
-      WHERE lower("from") = '${lowerAddr}' OR lower("to") = '${lowerAddr}'
+      WHERE "from" = decode('${hexAddr}', 'hex') OR "to" = decode('${hexAddr}', 'hex')
     `),
     queryTidx(`
       SELECT COUNT(*) as count
       FROM txs
-      WHERE lower(fee_payer) = '${lowerAddr}' AND lower("from") != '${lowerAddr}'
+      WHERE fee_payer = decode('${hexAddr}', 'hex') AND "from" != decode('${hexAddr}', 'hex')
     `),
   ])
 
