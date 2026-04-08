@@ -35,7 +35,7 @@ const PROTOCOL_DEX = '0xdec0000000000000000000000000000000000000' as const
 export async function getProtocolDexTVL(): Promise<number> {
   const key = 'defi:tvl:protocol_dex'
   const cached = await getCached<number>(key)
-  if (cached !== null) return cached
+  if (cached) return cached
 
   const stableAddrs = await getStablecoinAddresses()
   const balances = await Promise.allSettled(
@@ -62,7 +62,7 @@ export async function getProtocolDexTVL(): Promise<number> {
 export async function getCommunityDexTVL(): Promise<number> {
   const key = 'defi:tvl:community_dex'
   const cached = await getCached<number>(key)
-  if (cached !== null) return cached
+  if (cached) return cached
 
   const pools = await getTopPools(10)
   let tvl = 0
@@ -129,14 +129,14 @@ export async function getAddressDefiStats(address: string): Promise<AddressDefiS
   const MINT_V2  = '0x4c209b5fc8ad50758f13e2e1088ba56a560dff690a1c6fef26394f4c03821c4f'
   const BURN_V2  = '0xdccd412f0b1252819cb1fd330b93224ca42612892bb3f4f789976e6d81936496'
 
-  const [transferRows, swapRows, lpRows] = await Promise.all([
-    // Last 20 ERC-20 transfers, plus in/out totals
+  const [transferRows, swapRows, lpRows, transferCountRows] = await Promise.all([
+    // Last 20 ERC-20 transfers
     queryClickHouse<{
       block_timestamp: string; address: string; topic1: string; topic2: string
       data: string; hash: string
     }>(`
       SELECT block_timestamp, address, topic1, topic2,
-             substring(data, 1, 66) AS data, hash
+             data, hash
       FROM logs
       WHERE selector = '${TRANSFER}'
         AND (topic1 = '${padded}' OR topic2 = '${padded}')
@@ -159,18 +159,25 @@ export async function getAddressDefiStats(address: string): Promise<AddressDefiS
         countIf(selector = '${MINT_V2}') AS lp_adds,
         countIf(selector = '${BURN_V2}') AS lp_removes
       FROM logs
-      WHERE selector IN ('${MINT_V2}', '${BURN_V2}')
-        AND (topic2 = '${padded}' OR topic3 = '${padded}')
+      WHERE (selector = '${MINT_V2}' AND topic1 = '${padded}')
+         OR (selector = '${BURN_V2}' AND (topic1 = '${padded}' OR topic2 = '${padded}'))
+    `),
+    // Full-history transfer in/out counts (not capped by LIMIT 20)
+    queryClickHouse<{ transfers_in: string; transfers_out: string }>(`
+      SELECT
+        countIf(topic2 = '${padded}') AS transfers_in,
+        countIf(topic1 = '${padded}') AS transfers_out
+      FROM logs
+      WHERE selector = '${TRANSFER}'
+        AND (topic1 = '${padded}' OR topic2 = '${padded}')
+        AND topic3 IS NULL
     `),
   ])
 
-  // Count transfers in/out
-  let transfers_in = 0
-  let transfers_out = 0
-  for (const r of transferRows) {
-    if (r.topic2.toLowerCase() === padded) transfers_in++
-    else transfers_out++
-  }
+  // Full-history transfer counts from aggregation query
+  const transferCounts = transferCountRows[0] ?? { transfers_in: '0', transfers_out: '0' }
+  const transfers_in = Number(transferCounts.transfers_in)
+  const transfers_out = Number(transferCounts.transfers_out)
 
   // Resolve token symbols for recent transfers (best-effort)
   const recent_transfers: AddressTransfer[] = await Promise.all(
