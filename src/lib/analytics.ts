@@ -681,3 +681,188 @@ export async function getProtocolDexDailyStats(days = 30): Promise<ProtocolDexDa
   await setCached(key, result, 900)
   return result
 }
+
+// ─── Protocol DEX Pool Explorer ──────────────────────────────────
+
+export interface ProtocolDexPool {
+  poolId:      number
+  token:       string   // 20-byte lowercase address
+  symbol:      string   // resolved symbol or shortened address
+  swaps_30d:   number
+  volume_usd:  number   // volume_raw / 1e6 when whitelisted, else 0
+  avg_trade:   number   // volume_usd / swaps_30d
+  whitelisted: boolean  // true when getTokenInfo returns non-null
+}
+
+export interface ProtocolDexTrade {
+  timestamp:  string        // ISO datetime string
+  taker:      string        // 20-byte lowercase address
+  amount_raw: number        // raw amount (lo-64 bits of first data word)
+  amount_usd: number | null // amount_raw / 1e6 when whitelisted, else null
+  direction:  0 | 1         // lo-64 bits of second data word (0=buy pathUSD, 1=sell)
+}
+
+export async function getProtocolDexPools(days = 30): Promise<ProtocolDexPool[]> {
+  const key = `analytics:protocol_dex:pools:${days}`
+  const cached = await getCached<ProtocolDexPool[]>(key)
+  if (cached) return cached
+
+  const rows = await queryClickHouse<{
+    pool_id: string; token: string; swaps: string; volume_raw: string
+  }>(`
+    SELECT pool_id, token, sum(swaps) AS swaps, sum(volume_raw) AS volume_raw
+    FROM mv_protocol_dex_pool_daily
+    WHERE day >= today() - ${days}
+    GROUP BY pool_id, token
+    ORDER BY volume_raw DESC
+  `)
+
+  const result: ProtocolDexPool[] = await Promise.all(rows.map(async r => {
+    const info = await getTokenInfo(r.token)
+    const whitelisted = info !== null
+    const swaps_30d = Number(r.swaps)
+    const volume_usd = whitelisted ? Number(r.volume_raw) / 1e6 : 0
+    return {
+      poolId:    Number(r.pool_id),
+      token:     r.token,
+      symbol:    info?.symbol ?? `${r.token.slice(0, 6)}…${r.token.slice(-4)}`,
+      swaps_30d,
+      volume_usd,
+      avg_trade: swaps_30d > 0 ? volume_usd / swaps_30d : 0,
+      whitelisted,
+    }
+  }))
+
+  await setCached(key, result, 900)
+  return result
+}
+
+const PROTOCOL_DEX_ADDR = '0xdec0000000000000000000000000000000000000'
+const PROTOCOL_DEX_SWAP = '0x16c08f8f2c17b3c8879b3e3cf5efdbdcdfdbd0fcb3890f9d3086f470cd601ddd'
+
+export async function getProtocolDexPoolTrades(token: string, limit = 50): Promise<ProtocolDexTrade[]> {
+  const lower = token.toLowerCase()
+  // Pad token to 32-byte topic format (inline to avoid circular dep with defi.ts)
+  const paddedToken = '0x000000000000000000000000' + lower.slice(2)
+  const info = await getTokenInfo(lower)
+  const whitelisted = info !== null
+
+  const rows = await queryClickHouse<{
+    block_timestamp: string; topic2: string; data: string
+  }>(`
+    SELECT block_timestamp, topic2, data
+    FROM logs
+    WHERE address  = '${PROTOCOL_DEX_ADDR}'
+      AND selector = '${PROTOCOL_DEX_SWAP}'
+      AND topic3   = '${paddedToken}'
+    ORDER BY block_timestamp DESC
+    LIMIT ${limit}
+  `)
+
+  return rows.map(r => {
+    // data = "0x" + uint256_0 (64 hex) + uint256_1 (64 hex)
+    // lo-64 bits of uint256_0 (amount_in): chars 50-65 (0-indexed)
+    const amount_raw = parseInt(r.data.slice(50, 66), 16)
+    // lo-64 bits of uint256_1 (direction): chars 114-129 (0-indexed)
+    const direction = parseInt(r.data.slice(114, 130), 16) as 0 | 1
+    // topic2: "0x" + 24 zero-chars + 40-char address
+    const taker = '0x' + r.topic2.slice(26)
+    return {
+      timestamp:  r.block_timestamp,
+      taker,
+      amount_raw,
+      amount_usd: whitelisted ? amount_raw / 1e6 : null,
+      direction,
+    }
+  })
+}
+
+// ─── NFT Minter Concentration ─────────────────────────────────────
+
+export interface NFTMinterConcentration {
+  total_mints:     number
+  unique_minters:  number
+  top10_share_pct: number  // percentage of all mints by top 10 addresses
+}
+
+export interface TopNFTMinter {
+  rank:        number
+  minter:      string  // 20-byte lowercase address
+  mints:       number
+  pct_total:   number  // rounded to 2dp
+  collections: number  // unique collections minted from
+}
+
+// WHERE clause shared between both NFT minter queries
+const NFT_MINT_FILTER = `
+  selector = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+  AND topic3 IS NOT NULL
+  AND topic1 = '0x0000000000000000000000000000000000000000000000000000000000000000'
+`
+
+export async function getNFTMinterConcentration(): Promise<NFTMinterConcentration> {
+  const key = 'analytics:nft:minter_concentration'
+  const cached = await getCached<NFTMinterConcentration>(key)
+  if (cached) return cached
+
+  const [totalRows, top10Rows] = await Promise.all([
+    queryClickHouse<{ total_mints: string; unique_minters: string }>(`
+      SELECT count() AS total_mints, uniq(topic2) AS unique_minters
+      FROM logs
+      WHERE ${NFT_MINT_FILTER}
+    `),
+    queryClickHouse<{ mints: string }>(`
+      SELECT count() AS mints
+      FROM logs
+      WHERE ${NFT_MINT_FILTER}
+      GROUP BY topic2
+      ORDER BY mints DESC
+      LIMIT 10
+    `),
+  ])
+
+  const total_mints    = Number(totalRows[0]?.total_mints    ?? 0)
+  const unique_minters = Number(totalRows[0]?.unique_minters ?? 0)
+  const top10_sum      = top10Rows.reduce((s, r) => s + Number(r.mints), 0)
+  const top10_share_pct = total_mints > 0
+    ? Math.round((top10_sum / total_mints) * 1000) / 10
+    : 0
+
+  const result: NFTMinterConcentration = { total_mints, unique_minters, top10_share_pct }
+  await setCached(key, result, 900)
+  return result
+}
+
+export async function getTopNFTMinters(limit = 50): Promise<TopNFTMinter[]> {
+  const key = `analytics:nft:top_minters:${limit}`
+  const cached = await getCached<TopNFTMinter[]>(key)
+  if (cached) return cached
+
+  const rows = await queryClickHouse<{
+    minter: string; mints: string; pct_total: string; collections: string
+  }>(`
+    SELECT
+      '0x' || substring(topic2, 27)                          AS minter,
+      count()                                                AS mints,
+      round(count() * 100.0 / (
+        SELECT count() FROM logs WHERE ${NFT_MINT_FILTER}
+      ), 2)                                                  AS pct_total,
+      uniq(address)                                          AS collections
+    FROM logs
+    WHERE ${NFT_MINT_FILTER}
+    GROUP BY topic2
+    ORDER BY mints DESC
+    LIMIT ${limit}
+  `)
+
+  const result: TopNFTMinter[] = rows.map((r, i) => ({
+    rank:        i + 1,
+    minter:      r.minter,
+    mints:       Number(r.mints),
+    pct_total:   Number(r.pct_total),
+    collections: Number(r.collections),
+  }))
+
+  await setCached(key, result, 900)
+  return result
+}

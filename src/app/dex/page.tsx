@@ -3,12 +3,14 @@ import {
   getTopPools,
   getFeeTokenDailyStats,
   getProtocolDexDailyStats,
+  getProtocolDexPools,
   type DexDailyVolumeUSD,
 } from '@/lib/analytics'
 import { DexVolumeChart } from '@/components/charts/DexVolumeChart'
 import { FeeAmmChart } from '@/components/charts/FeeAmmChart'
 import { getProtocolDexTVL, getCommunityDexTVL } from '@/lib/defi'
 import { StatCard } from '@/components/StatCard'
+import { ProtocolDexPoolExplorer } from '@/components/ProtocolDexPoolExplorer'
 
 export const revalidate = 900
 
@@ -24,13 +26,14 @@ const fmtPct = (n: number, total: number) =>
   total > 0 ? `${((n / total) * 100).toFixed(1)}%` : '—'
 
 export default async function DexPage() {
-  const [feeDaily, protocolDaily, communityDaily, pools, protocolTVL, communityTVL] = await Promise.all([
+  const [feeDaily, protocolDaily, communityDaily, pools, protocolTVL, communityTVL, protocolDexPools] = await Promise.all([
     getFeeTokenDailyStats(30),
     getProtocolDexDailyStats(30),
     getDexDailyVolumeUSD(30),
     getTopPools(10),
     getProtocolDexTVL(),
     getCommunityDexTVL(),
+    getProtocolDexPools(30),
   ])
 
   // Fee AMM aggregates
@@ -190,6 +193,23 @@ export default async function DexPage() {
             </table>
           </div>
         </div>
+      </section>
+
+      {/* ── Section 4: Protocol DEX Pool Explorer ── */}
+      <section className="mt-12">
+        <div className="flex items-center gap-3 mb-3">
+          <h2 className="text-lg font-semibold text-white">Protocol DEX Pools</h2>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">Enshrined</span>
+        </div>
+        <p className="text-tempo-muted text-sm mb-6">
+          Per-pool breakdown of the enshrined Protocol DEX. Click any row to see recent trades.
+          Volume shown only for pools with a{' '}
+          <a href="https://tokenlist.tempo.xyz" className="text-tempo-blue hover:underline" target="_blank" rel="noopener noreferrer">
+            verified token ↗
+          </a>
+          .
+        </p>
+        <ProtocolDexPoolExplorer pools={protocolDexPools} />
       </section>
     </main>
   )
