@@ -1,32 +1,31 @@
 'use client'
 
 import { useState } from 'react'
+import { useWallet, useConnection } from '@solana/wallet-adapter-react'
+import { payWithSolana, payWithTempo } from '@/lib/walletPayment'
 
 interface ExportButtonProps {
   queryKey: string
   label?: string
 }
 
-type ExportState = 'idle' | 'challenged' | 'verifying' | 'error'
+type ExportState = 'idle' | 'challenged' | 'signing' | 'verifying' | 'error'
 
 interface ParsedChallenge {
   id: string
   realm: string
   method: string
   intent: string
-  request: string   // raw base64url string — echoed back verbatim in credential
+  request: string
   expires?: string
 }
 
-interface PaymentRequest {
+interface DecodedRequest {
   recipient?: string
   amount?: string
   currency?: string
 }
 
-// Split combined WWW-Authenticate header value into individual Payment challenges.
-// compose() appends multiple headers; browsers join them with ", ".
-// Each challenge begins with "Payment " so we split on that boundary.
 function parseChallenges(header: string): ParsedChallenge[] {
   const parts = header.split(/,\s*(?=Payment\s)/i)
   const challenges: ParsedChallenge[] = []
@@ -51,19 +50,16 @@ function parseChallenges(header: string): ParsedChallenge[] {
   return challenges
 }
 
-function decodeRequest(requestB64: string): PaymentRequest {
+function decodeRequest(requestB64: string): DecodedRequest {
   try {
     const padded = requestB64.replace(/-/g, '+').replace(/_/g, '/')
     const json = atob(padded.padEnd(padded.length + (4 - padded.length % 4) % 4, '='))
-    return JSON.parse(json) as PaymentRequest
+    return JSON.parse(json) as DecodedRequest
   } catch {
     return {}
   }
 }
 
-// Build the Authorization: Payment credential value for a given challenge + proof.
-// The credential is base64url(JSON({ challenge, payload })).
-// The challenge.request field must remain as the raw base64url string (not decoded).
 function buildCredential(challenge: ParsedChallenge, payload: unknown): string {
   const wire = {
     challenge: {
@@ -83,28 +79,32 @@ function buildCredential(challenge: ParsedChallenge, payload: unknown): string {
   return 'Payment ' + btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
-function formatRecipient(address: string | undefined, method: string): string {
+function formatAddress(address: string | null | undefined, method: string): string {
   if (!address) return '—'
-  if (method === 'solana') return `${address.slice(0, 8)}…${address.slice(-6)}`
-  return `${address.slice(0, 10)}…${address.slice(-6)}`
+  if (method === 'solana') return `${address.slice(0, 6)}…${address.slice(-4)}`
+  return `${address.slice(0, 8)}…${address.slice(-4)}`
 }
 
 export function ExportButton({ queryKey, label = 'Export CSV' }: ExportButtonProps) {
+  const { publicKey, connect, wallets, select, connected, signTransaction } = useWallet()
+  const { connection } = useConnection()
+
   const [state, setState] = useState<ExportState>('idle')
   const [error, setError] = useState<string | null>(null)
   const [challenges, setChallenges] = useState<ParsedChallenge[]>([])
-  const [activeMethod, setActiveMethod] = useState<string>('tempo')
-  const [proof, setProof] = useState('')
+  const [activeMethod, setActiveMethod] = useState<string>('solana')
+  const [showManual, setShowManual] = useState(false)
+  const [manualProof, setManualProof] = useState('')
 
   async function handleExport() {
     setError(null)
+    setShowManual(false)
     try {
       const res = await fetch('/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: queryKey }),
       })
-
       if (res.status === 402) {
         const wwwAuth = res.headers.get('WWW-Authenticate') ?? ''
         const parsed = parseChallenges(wwwAuth)
@@ -115,11 +115,9 @@ export function ExportButton({ queryKey, label = 'Export CSV' }: ExportButtonPro
         }
         setChallenges(parsed)
         setActiveMethod(parsed[0].method)
-        setProof('')
         setState('challenged')
         return
       }
-
       setState('error')
       setError('Export failed')
     } catch {
@@ -128,61 +126,25 @@ export function ExportButton({ queryKey, label = 'Export CSV' }: ExportButtonPro
     }
   }
 
-  async function handlePaymentSubmit() {
-    const challenge = challenges.find(c => c.method === activeMethod)
-    if (!challenge) return
-
-    const trimmed = proof.trim()
-    if (!trimmed) {
-      setError('Paste your transaction hash or signature')
-      return
-    }
-
-    // Validate format per method
-    if (challenge.method === 'tempo' && !/^0x[0-9a-fA-F]{64}$/.test(trimmed)) {
-      setError('Enter a valid Tempo transaction hash (0x followed by 64 hex characters)')
-      return
-    }
-    if (challenge.method === 'solana' && trimmed.length < 32) {
-      setError('Enter a valid Solana transaction signature')
-      return
-    }
-
-    const payload =
-      challenge.method === 'tempo'
-        ? { hash: trimmed, type: 'hash' }
-        : { signature: trimmed, type: 'hash' }
-
-    const credential = buildCredential(challenge, payload)
-
+  async function downloadWithCredential(credential: string) {
     setState('verifying')
     setError(null)
-
     try {
       const res = await fetch('/api/export', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: credential,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: credential },
         body: JSON.stringify({ query: queryKey }),
       })
-
       if (res.status === 402) {
-        const wwwAuth = res.headers.get('WWW-Authenticate') ?? ''
-        const parsed = parseChallenges(wwwAuth)
-        setChallenges(parsed.length > 0 ? parsed : challenges)
         setState('challenged')
-        setError('Payment verification failed — check your transaction hash and try again')
+        setError('Payment verification failed — check your transaction and try again')
         return
       }
-
       if (!res.ok) {
         setState('error')
         setError('Download failed')
         return
       }
-
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -192,101 +154,227 @@ export function ExportButton({ queryKey, label = 'Export CSV' }: ExportButtonPro
       URL.revokeObjectURL(url)
       setState('idle')
       setChallenges([])
-      setProof('')
+      setManualProof('')
     } catch {
       setState('error')
       setError('Network error — please try again')
     }
   }
 
-  if (state === 'challenged' || state === 'verifying') {
+  async function handleWalletPay() {
     const challenge = challenges.find(c => c.method === activeMethod)
-    const req = challenge ? decodeRequest(challenge.request) : {}
-
-    const methodLabel: Record<string, string> = {
-      tempo: 'Tempo (USDC.e)',
-      solana: 'Solana (USDC)',
-    }
-    const proofLabel: Record<string, string> = {
-      tempo: 'Transaction hash (0x…)',
-      solana: 'Transaction signature',
+    if (!challenge) return
+    const req = decodeRequest(challenge.request)
+    if (!req.recipient || !req.amount || !req.currency) {
+      setError('Malformed payment challenge')
+      return
     }
 
+    setState('signing')
+    setError(null)
+
+    try {
+      let txId: string
+      if (activeMethod === 'solana') {
+        txId = await payWithSolana(
+          { recipient: req.recipient, amount: req.amount, currency: req.currency },
+          { publicKey, signTransaction },
+          connection,
+        )
+      } else {
+        txId = await payWithTempo(
+          { recipient: req.recipient, amount: req.amount, currency: req.currency },
+        )
+      }
+
+      const payload = activeMethod === 'tempo'
+        ? { hash: txId, type: 'hash' }
+        : { signature: txId, type: 'hash' }
+      const credential = buildCredential(challenge, payload)
+      await downloadWithCredential(credential)
+    } catch (e) {
+      setState('challenged')
+      setError(e instanceof Error ? e.message : 'Payment failed')
+    }
+  }
+
+  async function handleManualSubmit() {
+    const challenge = challenges.find(c => c.method === activeMethod)
+    if (!challenge) return
+    const trimmed = manualProof.trim()
+    if (!trimmed) { setError('Paste your transaction hash or signature'); return }
+    if (activeMethod === 'tempo' && !/^0x[0-9a-fA-F]{64}$/.test(trimmed)) {
+      setError('Enter a valid Tempo transaction hash (0x followed by 64 hex characters)')
+      return
+    }
+    if (activeMethod === 'solana' && trimmed.length < 32) {
+      setError('Enter a valid Solana transaction signature')
+      return
+    }
+    const payload = activeMethod === 'tempo'
+      ? { hash: trimmed, type: 'hash' }
+      : { signature: trimmed, type: 'hash' }
+    const credential = buildCredential(challenge, payload)
+    await downloadWithCredential(credential)
+  }
+
+  // ── Idle state ──────────────────────────────────────────────────────────────
+  if (state === 'idle' || state === 'error') {
     return (
-      <div className="bg-tempo-card border border-tempo-border rounded-lg p-4 text-sm max-w-sm">
-        <p className="text-white font-medium mb-3">Pay $0.10 to Export</p>
+      <button
+        onClick={handleExport}
+        className="text-sm text-tempo-muted hover:text-white border border-tempo-border hover:border-tempo-blue rounded px-3 py-1.5 transition-colors"
+      >
+        {state === 'error' ? (
+          <span className="text-red-400">{error ?? 'Error'}</span>
+        ) : label}
+      </button>
+    )
+  }
 
-        {/* Method tabs */}
-        {challenges.length > 1 && (
-          <div className="flex gap-1 mb-4">
-            {challenges.map(c => (
-              <button
-                key={c.method}
-                onClick={() => { setActiveMethod(c.method); setProof(''); setError(null) }}
-                className={`px-3 py-1 rounded text-xs transition-colors ${
-                  activeMethod === c.method
-                    ? 'bg-tempo-blue text-white'
-                    : 'text-tempo-muted hover:text-white border border-tempo-border'
-                }`}
-              >
-                {methodLabel[c.method] ?? c.method}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {challenge && (
-          <>
-            <p className="text-tempo-muted mb-1 text-xs">
-              Send <strong className="text-white">$0.10 {challenge.method === 'tempo' ? 'USDC.e' : 'USDC'}</strong> to:
-            </p>
-            <p className="font-mono text-xs text-tempo-blue break-all mb-4">
-              {req.recipient ?? formatRecipient(req.recipient, challenge.method)}
-            </p>
-          </>
-        )}
-
-        <input
-          type="text"
-          aria-label={proofLabel[activeMethod] ?? 'Transaction proof'}
-          placeholder={proofLabel[activeMethod] ?? 'Paste proof…'}
-          value={proof}
-          onChange={e => setProof(e.target.value)}
-          className="w-full bg-tempo-dark border border-tempo-border rounded px-3 py-2 text-sm font-mono text-white placeholder:text-tempo-muted mb-3 focus:outline-none focus:border-tempo-blue"
-        />
-
-        {error && <p className="text-red-400 text-xs mb-3">{error}</p>}
-
-        <div className="flex gap-2">
-          <button
-            onClick={handlePaymentSubmit}
-            disabled={state === 'verifying'}
-            className="bg-tempo-blue text-white px-4 py-2 rounded text-sm hover:bg-blue-600 transition-colors disabled:opacity-50"
-          >
-            {state === 'verifying' ? 'Verifying…' : 'Verify & Download'}
-          </button>
-          <button
-            onClick={() => { setState('idle'); setChallenges([]); setError(null); setProof('') }}
-            className="text-tempo-muted hover:text-white px-4 py-2 text-sm"
-          >
-            Cancel
-          </button>
-        </div>
+  // ── Signing / verifying spinners ────────────────────────────────────────────
+  if (state === 'signing' || state === 'verifying') {
+    return (
+      <div className="text-sm text-tempo-muted flex items-center gap-2">
+        <span className="animate-spin">⟳</span>
+        {state === 'signing' ? 'Waiting for wallet…' : 'Verifying payment…'}
       </div>
     )
   }
 
+  // ── Challenged state ────────────────────────────────────────────────────────
+  const challenge = challenges.find(c => c.method === activeMethod)
+  const req = challenge ? decodeRequest(challenge.request) : {}
+
+  const methodLabel: Record<string, string> = {
+    tempo: 'Tempo (USDC.e)',
+    solana: 'Solana (USDC)',
+  }
+
+  const isSolanaConnected = connected && !!publicKey
+  const installedSolanaWallets = wallets.filter(w => (w.readyState as string) === 'Installed')
+
   return (
-    <button
-      onClick={handleExport}
-      disabled={state === 'error' && false}
-      className="text-sm text-tempo-muted hover:text-white border border-tempo-border hover:border-tempo-blue rounded px-3 py-1.5 transition-colors"
-    >
-      {state === 'error' ? (
-        <span className="text-red-400">{error ?? 'Error'}</span>
-      ) : (
-        label
+    <div className="bg-tempo-card border border-tempo-border rounded-lg p-4 text-sm max-w-sm">
+      <p className="text-white font-medium mb-3">Pay $0.10 to Export</p>
+
+      {/* Method tabs */}
+      {challenges.length > 1 && (
+        <div className="flex gap-1 mb-4">
+          {challenges.map(c => (
+            <button
+              key={c.method}
+              onClick={() => { setActiveMethod(c.method); setError(null); setShowManual(false) }}
+              className={`px-3 py-1 rounded text-xs transition-colors ${
+                activeMethod === c.method
+                  ? 'bg-tempo-blue text-white'
+                  : 'text-tempo-muted hover:text-white border border-tempo-border'
+              }`}
+            >
+              {methodLabel[c.method] ?? c.method}
+            </button>
+          ))}
+        </div>
       )}
-    </button>
+
+      {/* Solana tab */}
+      {activeMethod === 'solana' && (
+        <div className="space-y-3">
+          {isSolanaConnected ? (
+            <>
+              <p className="text-tempo-muted text-xs">
+                Connected: <span className="font-mono text-white">{formatAddress(publicKey.toBase58(), 'solana')}</span>
+              </p>
+              <button
+                onClick={handleWalletPay}
+                className="w-full bg-tempo-blue text-white px-4 py-2 rounded text-sm hover:bg-blue-600 transition-colors"
+              >
+                Pay $0.10 USDC
+              </button>
+            </>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-tempo-muted text-xs mb-2">Connect a Solana wallet to pay:</p>
+              {installedSolanaWallets.length > 0 ? (
+                installedSolanaWallets.map(w => (
+                  <button
+                    key={w.adapter.name}
+                    onClick={async () => {
+                      select(w.adapter.name as Parameters<typeof select>[0])
+                      try { await connect() } catch { /* user cancelled */ }
+                    }}
+                    className="w-full text-left px-3 py-2 rounded border border-tempo-border hover:border-tempo-blue text-white text-xs transition-colors"
+                  >
+                    {w.adapter.name}
+                  </button>
+                ))
+              ) : (
+                <p className="text-tempo-muted text-xs">
+                  No Solana wallet detected.{' '}
+                  <a href="https://phantom.app" target="_blank" rel="noopener" className="text-tempo-blue hover:underline">
+                    Get Phantom ↗
+                  </a>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tempo tab */}
+      {activeMethod === 'tempo' && (
+        <div className="space-y-3">
+          <p className="text-tempo-muted text-xs">
+            Pay via MetaMask, Rabby, or any EVM wallet on Tempo Mainnet (chain ID 4217).
+          </p>
+          <button
+            onClick={handleWalletPay}
+            className="w-full bg-tempo-blue text-white px-4 py-2 rounded text-sm hover:bg-blue-600 transition-colors"
+          >
+            Pay $0.10 USDC.e
+          </button>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && <p className="text-red-400 text-xs mt-3">{error}</p>}
+
+      {/* Manual fallback toggle */}
+      <button
+        onClick={() => setShowManual(v => !v)}
+        className="text-tempo-muted hover:text-white text-xs mt-4 underline underline-offset-2"
+      >
+        {showManual ? 'Hide manual entry' : 'Pay manually instead'}
+      </button>
+
+      {showManual && (
+        <div className="mt-3 space-y-2">
+          <p className="text-tempo-muted text-xs">
+            Send <strong className="text-white">$0.10 {activeMethod === 'tempo' ? 'USDC.e' : 'USDC'}</strong> to:{' '}
+            <span className="font-mono text-tempo-blue break-all">{req.recipient ?? '—'}</span>
+          </p>
+          <input
+            type="text"
+            placeholder={activeMethod === 'tempo' ? 'Transaction hash (0x…)' : 'Transaction signature'}
+            value={manualProof}
+            onChange={e => setManualProof(e.target.value)}
+            className="w-full bg-tempo-dark border border-tempo-border rounded px-3 py-2 text-xs font-mono text-white placeholder:text-tempo-muted focus:outline-none focus:border-tempo-blue"
+          />
+          <button
+            onClick={handleManualSubmit}
+            className="bg-tempo-blue text-white px-4 py-1.5 rounded text-xs hover:bg-blue-600 transition-colors"
+          >
+            Verify & Download
+          </button>
+        </div>
+      )}
+
+      <button
+        onClick={() => { setState('idle'); setChallenges([]); setError(null) }}
+        className="text-tempo-muted hover:text-white text-xs mt-2 block"
+      >
+        Cancel
+      </button>
+    </div>
   )
 }
