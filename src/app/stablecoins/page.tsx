@@ -1,6 +1,7 @@
 import { getStablecoinStats, getStablecoinDailyVolume, getStablecoinSupplyHistory } from '@/lib/analytics'
 import { StablecoinSupplyChart } from '@/components/charts/StablecoinSupplyChart'
 import { StablecoinVolumeChart } from '@/components/charts/StablecoinVolumeChart'
+import { ExportButton } from '@/components/ExportButton'
 
 export const revalidate = 900
 
@@ -74,8 +75,9 @@ export default async function StablecoinsPage() {
 
       {/* Stablecoin table */}
       <div className="bg-tempo-card border border-tempo-border rounded-lg overflow-hidden">
-        <div className="px-6 py-4 border-b border-tempo-border">
+        <div className="px-6 py-4 border-b border-tempo-border flex items-center justify-between">
           <h2 className="text-base font-medium text-white">All Stablecoins</h2>
+          <ExportButton queryKey="stablecoin-daily" label="Export CSV" />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
