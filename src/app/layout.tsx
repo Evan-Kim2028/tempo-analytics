@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { SearchBar } from '@/components/SearchBar'
+import { PrimaryNav } from '@/components/nav/PrimaryNav'
 
 export const metadata: Metadata = {
-  title: 'Tempo Analytics',
+  title: 'Tempo Explorer',
   description: 'Analytics-focused explorer for the Tempo blockchain',
 }
 
@@ -13,13 +14,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-tempo-dark text-gray-200">
         <nav className="border-b border-tempo-border px-6 py-4 flex items-center gap-6">
           <a href="/" className="text-white font-semibold text-lg tracking-tight shrink-0">
-            tempo<span className="text-tempo-blue">analytics</span>
+            tempo<span className="text-tempo-blue">explorer</span>
           </a>
-          <a href="/blocks" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">Blocks</a>
-          <a href="/analytics" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">Overview</a>
-          <a href="/stablecoins" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">Stablecoins</a>
-          <a href="/dex" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">DEX</a>
-          <a href="/nfts" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">NFTs</a>
+          <PrimaryNav />
           <SearchBar />
         </nav>
         <main className="px-6 py-8 max-w-6xl mx-auto">
