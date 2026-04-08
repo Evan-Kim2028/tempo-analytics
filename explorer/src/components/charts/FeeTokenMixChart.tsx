@@ -12,11 +12,6 @@ import {
 } from 'recharts'
 import type { FeeTokenMixPoint } from '@/lib/tempoAnalytics'
 
-type FeeTokenMixDatum = FeeTokenMixPoint & {
-  label?: string
-  pct?: number
-}
-
 type ChartRow = {
   day: string
   [token: string]: number | string
@@ -27,26 +22,16 @@ const fmtPercent = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
 })
 
-function getTokenLabel(point: FeeTokenMixPoint): string {
-  const datum = point as FeeTokenMixDatum
-  return datum.label ?? point.fee_token
-}
-
-function getTokenPct(point: FeeTokenMixPoint): number {
-  const datum = point as FeeTokenMixDatum
-  return datum.pct ?? point.pct_of_day
-}
-
 function buildChartData(data: FeeTokenMixPoint[]): { rows: ChartRow[]; tokens: string[] } {
   const rowsByDay = new Map<string, ChartRow>()
   const tokens: string[] = []
 
   for (const point of data) {
-    const token = getTokenLabel(point)
+    const token = point.fee_token
     if (!tokens.includes(token)) tokens.push(token)
 
     const row = rowsByDay.get(point.day) ?? { day: point.day }
-    row[token] = getTokenPct(point)
+    row[token] = point.pct_of_day
     rowsByDay.set(point.day, row)
   }
 
@@ -55,7 +40,6 @@ function buildChartData(data: FeeTokenMixPoint[]): { rows: ChartRow[]; tokens: s
 
 export function FeeTokenMixChart({ data }: { data: FeeTokenMixPoint[] }) {
   const { rows, tokens } = buildChartData(data)
-
   return (
     <ResponsiveContainer width="100%" height={280}>
       <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>

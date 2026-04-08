@@ -27,11 +27,11 @@ describe('AnalyticsNarrative', () => {
       { day: '2026-04-01', tempo_txs: 50, total_txs: 200, tempo_pct: 25 },
     ]
     const featureAdoption = [
-      { day: '2026-04-01', total_tempo: 100, sponsored_pct: 4, batched_pct: 2, time_bounded_pct: 80, fee_token_pct: 25 },
+      { day: '2026-04-01', sponsored_pct: 4, batched_pct: 2, time_bounded_pct: 80, fee_token_set_pct: 25 },
     ]
     const feeTokenMix = [
-      { day: '2026-04-01', fee_token: '0xusdc', label: 'USDC.e', txs: 74, pct: 74 },
-      { day: '2026-04-01', fee_token: '0xpath', label: 'pathUSD', txs: 26, pct: 26 },
+      { day: '2026-04-01', fee_token: 'USDC.e', txs: 74, pct_of_day: 74 },
+      { day: '2026-04-01', fee_token: 'pathUSD', txs: 26, pct_of_day: 26 },
     ]
     const sponsorConcentration = [
       { day: '2026-04-01', sponsored_txs: 120, top1_pct: 60, top5_pct: 95, sponsor_count: 5 },
@@ -51,9 +51,9 @@ describe('AnalyticsNarrative', () => {
 
     render(
       <AnalyticsNarrative
-        tempoShare={tempoShare as never}
-        featureAdoption={featureAdoption as never}
-        feeTokenMix={feeTokenMix as never}
+        tempoShare={tempoShare}
+        featureAdoption={featureAdoption}
+        feeTokenMix={feeTokenMix}
         sponsorConcentration={sponsorConcentration}
         topSponsors={topSponsors}
         webauthnUsage={webauthnUsage}
@@ -68,5 +68,6 @@ describe('AnalyticsNarrative', () => {
     expect(screen.getByRole('heading', { name: 'WebAuthn/Passkey Usage Over Time' })).toBeInTheDocument()
     expect(screen.getByText('USDC.e')).toBeInTheDocument()
     expect(screen.getByText('0x3025f36b397dc7736389fcb8caf2c7dad0ff2356')).toBeInTheDocument()
+    expect(screen.getByText('2026-04-08')).toBeInTheDocument()
   })
 })
