@@ -11,7 +11,6 @@ import { SigTypePie } from '@/components/charts/SigTypePie'
 import { TxCategoryChart } from '@/components/charts/TxCategoryChart'
 import { InscriptionChart } from '@/components/charts/InscriptionChart'
 import { StablecoinVolumeChart } from '@/components/charts/StablecoinVolumeChart'
-import { DexActivityChart } from '@/components/charts/DexActivityChart'
 import { ExportButton } from '@/components/ExportButton'
 
 export const revalidate = 900 // 15 min
@@ -113,7 +112,6 @@ export default async function AnalyticsPage() {
             Community-deployed V2 AMMs. Top pair: TIMECOIN/USDC.e.
             USD volume tracking requires per-pair token mapping (coming soon).
           </p>
-          <DexActivityChart data={dexDaily} />
           {topPairs.length > 0 && (
             <div className="mt-4 space-y-1">
               {topPairs.map(p => (
