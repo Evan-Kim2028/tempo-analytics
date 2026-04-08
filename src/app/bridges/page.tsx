@@ -1,7 +1,6 @@
 import {
-  getDailyBridgeProviderAssetFlows,
-  getDailyBridgeProviderFlows,
   getBridgeNetInflowChartData,
+  getRecentBridgeEvents,
 } from '@/lib/bridges'
 import { BridgeFlowTable } from '@/components/BridgeFlowTable'
 import { BridgeNetInflowChart } from '@/components/charts/BridgeNetInflowChart'
@@ -9,9 +8,8 @@ import { BridgeNetInflowChart } from '@/components/charts/BridgeNetInflowChart'
 export const revalidate = 900
 
 export default async function BridgesPage() {
-  const [providerFlows, providerAssetFlows, chartData] = await Promise.all([
-    getDailyBridgeProviderFlows(30),
-    getDailyBridgeProviderAssetFlows(30),
+  const [recentEvents, chartData] = await Promise.all([
+    getRecentBridgeEvents(50, 30),
     getBridgeNetInflowChartData(30),
   ])
 
@@ -20,7 +18,7 @@ export default async function BridgesPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-white mb-1">Bridges</h1>
         <p className="text-tempo-muted text-sm">
-          Provider-first bridge flows on Tempo Mainnet. The tables below show 30-day daily rollups by provider and by asset.
+          Provider-first bridge flows on Tempo Mainnet. The chart shows 30-day daily net inflows by provider.
         </p>
       </div>
 
@@ -30,7 +28,7 @@ export default async function BridgesPage() {
         <BridgeNetInflowChart data={chartData} />
       </div>
 
-      <BridgeFlowTable providerFlows={providerFlows} providerAssetFlows={providerAssetFlows} />
+      <BridgeFlowTable events={recentEvents} />
     </main>
   )
 }

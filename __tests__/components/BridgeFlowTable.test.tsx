@@ -1,57 +1,49 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { BridgeFlowTable } from '@/components/BridgeFlowTable'
 
 describe('BridgeFlowTable', () => {
-  it('renders a provider daily row with compact USD formatting', () => {
+  it('renders recent bridge events with direction labels and compact USD amounts', () => {
     render(
       <BridgeFlowTable
-        providerFlows={[
-          {
-            day: '2026-04-08',
-            provider: 'stargate',
-            provider_label: 'Stargate',
-            gross_inflow: 1250000,
-            gross_outflow: 250000,
-            net_flow: 1000000,
-            tx_count: 17,
-            unique_users: 9,
-          },
-        ]}
-        providerAssetFlows={[
+        events={[
           {
             day: '2026-04-08',
             provider: 'stargate',
             provider_label: 'Stargate',
             asset: 'USDC.e',
-            token: '0x1111111111111111111111111111111111111111',
-            gross_inflow: 1500000,
-            gross_outflow: 500000,
-            net_flow: 1000000,
-            tx_count: 12,
-            unique_users: 4,
+            token: '0x20c000000000000000000000b9537d11c60e8b50',
+            user: '0xaabbccdd00000000000000000000000000000001',
+            tx_hash: '0xdeadbeef00000000000000000000000000000000000000000000000000000001',
+            direction: 'inflow',
+            amount: 1250000,
+          },
+          {
+            day: '2026-04-07',
+            provider: 'stargate',
+            provider_label: 'Stargate',
+            asset: 'USDC.e',
+            token: '0x20c000000000000000000000b9537d11c60e8b50',
+            user: '0xaabbccdd00000000000000000000000000000002',
+            tx_hash: '0xdeadbeef00000000000000000000000000000000000000000000000000000002',
+            direction: 'outflow',
+            amount: 250000,
           },
         ]}
       />,
     )
 
-    const providerSection = screen.getByRole('heading', { name: 'Provider Daily Rows' }).closest('div')?.parentElement
-    const assetSection = screen.getByRole('heading', { name: 'Provider Asset Rollups' }).closest('div')?.parentElement
-
-    expect(providerSection).not.toBeNull()
-    expect(within(providerSection as HTMLElement).getByText('Stargate')).toBeInTheDocument()
-    expect(within(providerSection as HTMLElement).getByText('$1.25M')).toBeInTheDocument()
-    expect(within(providerSection as HTMLElement).getByText('$250.00K')).toBeInTheDocument()
-    expect(within(providerSection as HTMLElement).getByText('$1.00M')).toBeInTheDocument()
-
-    expect(assetSection).not.toBeNull()
-    expect(within(assetSection as HTMLElement).getByText('USDC.e')).toBeInTheDocument()
-    expect(within(assetSection as HTMLElement).getByText('$1.50M')).toBeInTheDocument()
-    expect(within(assetSection as HTMLElement).getByText('$500.00K')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Recent Bridge Mints & Burns' })).toBeInTheDocument()
+    expect(screen.getByText('Mint')).toBeInTheDocument()
+    expect(screen.getByText('Burn')).toBeInTheDocument()
+    expect(screen.getByText('$1.25M')).toBeInTheDocument()
+    expect(screen.getByText('$250.00K')).toBeInTheDocument()
+    expect(screen.getAllByText('Stargate')).toHaveLength(2)
+    expect(screen.getAllByText('USDC.e')).toHaveLength(2)
   })
 
-  it('renders an empty-state message when no rows exist', () => {
-    render(<BridgeFlowTable providerFlows={[]} providerAssetFlows={[]} />)
+  it('renders an empty-state message when no events exist', () => {
+    render(<BridgeFlowTable events={[]} />)
 
-    expect(screen.getAllByText('No bridge flows found for the selected period.')).toHaveLength(2)
+    expect(screen.getByText('No bridge events found for the selected period.')).toBeInTheDocument()
   })
 })

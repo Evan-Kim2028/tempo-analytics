@@ -433,3 +433,25 @@ export async function getDailyBridgeProviderAssetFlows(days = 30): Promise<Daily
   await setCached(key, assetRows, CACHE_TTL_SECONDS)
   return assetRows
 }
+
+export interface RecentBridgeEvent {
+  day: string
+  provider: string
+  provider_label: string
+  asset: string
+  token: string
+  user: string
+  tx_hash: string
+  direction: 'inflow' | 'outflow'
+  amount: number
+}
+
+export async function getRecentBridgeEvents(limit = 50, days = 30): Promise<RecentBridgeEvent[]> {
+  const events = await getStrictBridgeTransferEvents(days)
+  return [...events]
+    .sort((a, b) => b.day.localeCompare(a.day) || b.tx_hash.localeCompare(a.tx_hash))
+    .slice(0, limit)
+    .map(({ day, provider, provider_label, asset, token, user, tx_hash, direction, amount }) => ({
+      day, provider, provider_label, asset, token, user, tx_hash, direction, amount,
+    }))
+}
