@@ -1,11 +1,12 @@
 {
-  "name": "tempo-explorer",
+  "name": "tempo-analytics",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "start:standalone": "node scripts/start-standalone.mjs",
     "test": "jest",
     "test:watch": "jest --watch"
   },

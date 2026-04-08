@@ -3,7 +3,7 @@ import './globals.css'
 import { SearchBar } from '@/components/SearchBar'
 
 export const metadata: Metadata = {
-  title: 'Tempo Explorer',
+  title: 'Tempo Analytics',
   description: 'Analytics-focused explorer for the Tempo blockchain',
 }
 
@@ -13,7 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-tempo-dark text-gray-200">
         <nav className="border-b border-tempo-border px-6 py-4 flex items-center gap-6">
           <a href="/" className="text-white font-semibold text-lg tracking-tight shrink-0">
-            tempo<span className="text-tempo-blue">explorer</span>
+            tempo<span className="text-tempo-blue">analytics</span>
           </a>
           <a href="/blocks" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">Blocks</a>
           <a href="/analytics" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">Analytics</a>

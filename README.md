@@ -1,4 +1,4 @@
-# Tempo Explorer
+# Tempo Analytics
 
 Analytics-focused explorer for the Tempo blockchain.
 
@@ -24,6 +24,11 @@ Analytics-focused explorer for the Tempo blockchain.
 5. Run `npm install`
 6. Start the app with `npm run dev`
 7. Share it directly with a tunnel such as `cloudflared tunnel --url http://localhost:3000`
+
+For a production-style local run that serves the built app and copies the required standalone assets, use:
+
+- `npm run build`
+- `npm run start:standalone`
 
 ## ClickHouse Assets
 
