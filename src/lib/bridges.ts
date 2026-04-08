@@ -26,7 +26,7 @@ interface RawBridgeAdapterTouchRow {
   address: string
 }
 
-type BridgeTransferClassification = 'strict_user_flow' | 'internal_rebalance' | 'unmatched_adapter_touch'
+type BridgeTransferClassification = 'strict_user_flow' | 'internal_rebalance' | 'unknown'
 
 interface ClassifiedBridgeTransfer {
   day: string
@@ -131,7 +131,7 @@ function classifyBridgeTransfer(
 
   let classification: BridgeTransferClassification
   if (!hasProviderAdapterTouch) {
-    classification = 'unmatched_adapter_touch'
+    classification = 'unknown'
   } else if (isBridgeOwnedRecipient) {
     classification = 'internal_rebalance'
   } else {
