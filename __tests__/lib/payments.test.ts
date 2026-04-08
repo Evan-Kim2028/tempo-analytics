@@ -158,6 +158,22 @@ test('reads recent payments from cache before querying clickhouse', async () => 
     },
   ])
 
-  await expect(getRecentPayments(25)).resolves.toHaveLength(1)
+  await expect(getRecentPayments(25)).resolves.toEqual([
+    {
+      timestamp: '2026-04-08 12:00:00',
+      day: '2026-04-08',
+      tx_hash: '0xcached',
+      sender: '0x1111111111111111111111111111111111111111',
+      recipient: '0x2222222222222222222222222222222222222222',
+      token: '0x20c0000000000000000000000000000000000000',
+      token_label: 'pathUSD',
+      amount: 2.5,
+      status: 'success',
+      memo_hex: '0x534f432d63616368656400000000000000000000000000000000000000000000',
+      memo_text: 'SOC-cached',
+      memo_kind: 'readable',
+      memo_family: 'SOC-*',
+    },
+  ])
   expect(mockQuery).not.toHaveBeenCalled()
 })

@@ -174,7 +174,7 @@ async function fetchFailedPaymentRows(days: number): Promise<RawPaymentRow[]> {
 }
 
 export async function getRecentPayments(limit = 50, days = 30): Promise<PaymentRow[]> {
-  const cacheKey = `payments:recent:${limit}:${days}`
+  const cacheKey = 'payments:recent'
   const cached = await getCached<PaymentRow[]>(cacheKey)
   if (cached !== null) return cached
 
