@@ -43,12 +43,12 @@ export async function getDailyStats(days = 30): Promise<DailyStat[]> {
     SELECT
       s.day                             AS day,
       sum(s.txs)                        AS txs,
-      uniqMerge(u.unique_senders_state) AS unique_senders,
+      any(u.unique_senders)              AS unique_senders,
       sum(s.batch_txs)                  AS batch_txs,
       sum(s.sponsored_txs)              AS sponsored_txs
     FROM mv_daily_stats s
     ANY LEFT JOIN (
-      SELECT day, uniqMerge(unique_senders_state) AS unique_senders_state
+      SELECT day, uniqMerge(unique_senders_state) AS unique_senders
       FROM mv_daily_uniq
       GROUP BY day
     ) u ON s.day = u.day
@@ -715,6 +715,7 @@ export async function getProtocolDexPools(days = 30): Promise<ProtocolDexPool[]>
     WHERE day >= today() - ${days}
     GROUP BY pool_id, token
     ORDER BY volume_raw DESC
+    LIMIT 100
   `)
 
   const result: ProtocolDexPool[] = await Promise.all(rows.map(async r => {
