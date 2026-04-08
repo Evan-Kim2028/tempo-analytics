@@ -17,8 +17,14 @@ Analytics-focused explorer for the Tempo blockchain.
 ## Quick Start
 
 1. Copy `.env.example` to `.env.local`
-2. Point `TIDX_URL` and `CLICKHOUSE_URL` at your services
+2. Point `TIDX_URL`, `CLICKHOUSE_URL`, and `CLICKHOUSE_DB` at your services
 3. Set `TEMPO_RPC_URL` only if you need a non-default Tempo RPC endpoint
 4. Install dependencies with `npm install`
 5. Start the app with `npm run dev`
 6. Optionally expose it with `cloudflared tunnel --url http://localhost:3000`
+
+## ClickHouse Assets
+
+- Apply definitions only: `CLICKHOUSE_URL=http://localhost:8123 CLICKHOUSE_DB=tidx_4217 bash scripts/apply-clickhouse-assets.sh`
+- Apply definitions plus historical backfills: `CLICKHOUSE_RUN_BACKFILLS=1 CLICKHOUSE_URL=http://localhost:8123 CLICKHOUSE_DB=tidx_4217 bash scripts/apply-clickhouse-assets.sh`
+- Validate the repo-owned analytics assets: `CLICKHOUSE_URL=http://localhost:8123 CLICKHOUSE_DB=tidx_4217 TIDX_URL=http://localhost:8080 bash scripts/validate-data.sh`

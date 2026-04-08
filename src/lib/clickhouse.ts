@@ -3,7 +3,7 @@
 // so analytics queries go here instead of through queryTidx().
 
 const CH_URL = process.env.CLICKHOUSE_URL ?? 'http://clickhouse:8123'
-const CH_DB = 'tidx_4217'
+const CH_DB = process.env.CLICKHOUSE_DB ?? 'tidx_4217'
 
 export async function queryClickHouse<T = Record<string, unknown>>(sql: string): Promise<T[]> {
   const url = `${CH_URL}/?database=${CH_DB}&query=${encodeURIComponent(sql + ' FORMAT JSON')}`
