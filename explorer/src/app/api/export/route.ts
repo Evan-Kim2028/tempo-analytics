@@ -28,7 +28,7 @@ const EXPORT_QUERIES: Record<string, string> = {
     LIMIT 90
   `,
   'fee-tokens': `
-    SELECT fee_token, COUNT(*) as count
+    SELECT '0x' || encode(fee_token, 'hex') AS fee_token, COUNT(*) as count
     FROM txs
     WHERE fee_token IS NOT NULL
     GROUP BY fee_token
@@ -43,7 +43,8 @@ const EXPORT_QUERIES: Record<string, string> = {
     ORDER BY week ASC
   `,
   'latest-blocks': `
-    SELECT num, hash, timestamp, gas_used, miner
+    SELECT num, '0x' || encode(hash, 'hex') AS hash, timestamp, gas_used,
+           '0x' || encode(miner, 'hex') AS miner
     FROM blocks
     ORDER BY num DESC
     LIMIT 1000

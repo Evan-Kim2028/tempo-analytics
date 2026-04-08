@@ -83,13 +83,38 @@ async function getTx(hash: string) {
   const cached = await getCached<{ tx: TidxRow; receipt: TidxRow | null; transfers: TokenTransfer[]; decoded: DecodedCalldata | null; trace: TraceFrame[] | null }>(key)
   if (cached) return cached
 
+  const hashHex = hash.slice(2) // strip 0x for decode(); bytea columns need decode('hex', 'hex')
   const [txResult, receiptResult, logsResult, trace] = await Promise.all([
-    queryTidx(`SELECT * FROM txs WHERE hash = '${hash}' LIMIT 1`),
-    queryTidx(`SELECT * FROM receipts WHERE tx_hash = '${hash}' LIMIT 1`),
     queryTidx(`
-      SELECT address, topic1, topic2, data, log_idx
+      SELECT block_num, block_timestamp,
+             '0x' || encode(hash, 'hex') AS hash,
+             type,
+             '0x' || encode("from", 'hex') AS "from",
+             '0x' || encode("to", 'hex') AS "to",
+             value,
+             '0x' || encode(input, 'hex') AS input,
+             gas_limit, max_fee_per_gas, max_priority_fee_per_gas,
+             gas_used, nonce,
+             '0x' || encode(nonce_key, 'hex') AS nonce_key,
+             call_count, signature_type,
+             '0x' || encode(fee_token, 'hex') AS fee_token,
+             '0x' || encode(fee_payer, 'hex') AS fee_payer,
+             valid_before, valid_after, calls
+      FROM txs WHERE hash = decode('${hashHex}', 'hex') LIMIT 1
+    `),
+    queryTidx(`
+      SELECT tx_idx, gas_used, cumulative_gas_used, effective_gas_price, status
+      FROM receipts WHERE tx_hash = decode('${hashHex}', 'hex') LIMIT 1
+    `),
+    queryTidx(`
+      SELECT '0x' || encode(address, 'hex') AS address,
+             '0x' || encode(topic1, 'hex') AS topic1,
+             '0x' || encode(topic2, 'hex') AS topic2,
+             '0x' || encode(data, 'hex') AS data,
+             log_idx
       FROM logs
-      WHERE tx_hash = '${hash}' AND topic0 = '${TRANSFER_TOPIC}'
+      WHERE tx_hash = decode('${hashHex}', 'hex')
+        AND topic0 = decode('${TRANSFER_TOPIC.slice(2)}', 'hex')
       ORDER BY log_idx ASC
       LIMIT 50
     `),

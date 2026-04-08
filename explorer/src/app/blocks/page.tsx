@@ -18,7 +18,10 @@ async function getLatestBlocks(): Promise<Block[]> {
   if (cached) return cached
 
   const result = await queryTidx(`
-    SELECT num, hash, timestamp, gas_used, miner
+    SELECT num,
+           '0x' || encode(hash, 'hex') AS hash,
+           timestamp, gas_used,
+           '0x' || encode(miner, 'hex') AS miner
     FROM blocks
     ORDER BY num DESC
     LIMIT 50

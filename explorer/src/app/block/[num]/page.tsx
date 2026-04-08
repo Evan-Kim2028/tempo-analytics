@@ -14,9 +14,21 @@ async function getBlock(num: string) {
   if (cached) return cached
 
   const [blockResult, txsResult] = await Promise.all([
-    queryTidx(`SELECT * FROM blocks WHERE num = ${blockNum} LIMIT 1`),
     queryTidx(`
-      SELECT hash, "from", "to", value, signature_type, fee_token, fee_payer
+      SELECT num,
+             '0x' || encode(hash, 'hex') AS hash,
+             '0x' || encode(parent_hash, 'hex') AS parent_hash,
+             timestamp, gas_limit, gas_used,
+             '0x' || encode(miner, 'hex') AS miner
+      FROM blocks WHERE num = ${blockNum} LIMIT 1
+    `),
+    queryTidx(`
+      SELECT '0x' || encode(hash, 'hex') AS hash,
+             '0x' || encode("from", 'hex') AS "from",
+             '0x' || encode("to", 'hex') AS "to",
+             value, signature_type,
+             '0x' || encode(fee_token, 'hex') AS fee_token,
+             '0x' || encode(fee_payer, 'hex') AS fee_payer
       FROM txs
       WHERE block_num = ${blockNum}
       ORDER BY idx ASC
