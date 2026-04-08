@@ -12,4 +12,9 @@ describe('PrimaryNav', () => {
     expect(screen.getByRole('link', { name: 'NFTs' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Blocks' })).not.toBeInTheDocument()
   })
+
+  it('renders the payments tab in primary navigation', () => {
+    render(<PrimaryNav />)
+    expect(screen.getByRole('link', { name: 'Payments' })).toHaveAttribute('href', '/payments')
+  })
 })
