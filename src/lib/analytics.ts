@@ -666,7 +666,7 @@ export async function getProtocolDexDailyStats(days = 30): Promise<ProtocolDexDa
     day: string; swaps: string; volume_raw: string
   }>(`
     SELECT day, sum(swaps) AS swaps, sum(volume_raw) AS volume_raw
-    FROM mv_protocol_dex_daily
+    FROM mv_protocol_dex_volume_totals_daily
     WHERE day >= today() - ${days}
     GROUP BY day
     ORDER BY day ASC
