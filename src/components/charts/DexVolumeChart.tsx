@@ -33,7 +33,7 @@ export function DexVolumeChart({ data, color = '#0057FF' }: Props) {
         <Tooltip
           contentStyle={{ backgroundColor: '#13131A', border: '1px solid #1E1E2E', borderRadius: 6 }}
           labelStyle={{ color: '#fff' }}
-          formatter={(v: number) => [fmtUSD.format(v), 'volume']}
+          formatter={(v: number, name: string) => [fmtUSD.format(v), name]}
         />
         <Bar dataKey="volume_usd" name="USD Volume" fill={color} radius={[2, 2, 0, 0]} />
       </BarChart>

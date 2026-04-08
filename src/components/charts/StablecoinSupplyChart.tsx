@@ -27,7 +27,7 @@ export function StablecoinSupplyChart({ data }: { data: StablecoinSupplyPoint[] 
           contentStyle={{ backgroundColor: '#13131A', border: '1px solid #1E1E2E', borderRadius: 6 }}
           labelStyle={{ color: '#fff', marginBottom: 4 }}
           itemStyle={{ color: '#6B7280' }}
-          formatter={(v: number) => [fmtUSD.format(v), '']}
+          formatter={(v: number, name: string) => [fmtUSD.format(v), name]}
         />
         <Legend wrapperStyle={{ color: '#6B7280', fontSize: 12 }} />
         <Area type="monotone" dataKey="pathUSD" name="pathUSD" stackId="1" stroke="#10B981" fill="#10B981" fillOpacity={0.5} />

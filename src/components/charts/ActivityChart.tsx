@@ -27,7 +27,7 @@ export function ActivityChart({ data }: { data: DailyStat[] }) {
           contentStyle={{ backgroundColor: '#13131A', border: '1px solid #1E1E2E', borderRadius: 6 }}
           labelStyle={{ color: '#fff', marginBottom: 4 }}
           itemStyle={{ color: '#6B7280' }}
-          formatter={(v: number) => [v.toLocaleString(), '']}
+          formatter={(v: number, name: string) => [v.toLocaleString(), name]}
         />
         <Legend wrapperStyle={{ color: '#6B7280', fontSize: 12 }} />
         <Line

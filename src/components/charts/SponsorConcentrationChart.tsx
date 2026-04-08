@@ -36,7 +36,7 @@ export function SponsorConcentrationChart({ data }: { data: SponsorConcentration
           contentStyle={{ backgroundColor: '#13131A', border: '1px solid #1E1E2E', borderRadius: 6 }}
           labelStyle={{ color: '#fff', marginBottom: 4 }}
           itemStyle={{ color: '#6B7280' }}
-          formatter={(value: number) => [`${fmtPercent.format(value)}%`, '']}
+          formatter={(value: number, name: string) => [`${fmtPercent.format(value)}%`, name]}
         />
         <Legend wrapperStyle={{ color: '#6B7280', fontSize: 12 }} />
         <Line type="monotone" dataKey="top1_pct" name="Top 1 sponsor" stroke="#F43F5E" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />

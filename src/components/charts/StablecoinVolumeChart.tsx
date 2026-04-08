@@ -27,7 +27,7 @@ export function StablecoinVolumeChart({ data }: { data: StablecoinDailyStat[] })
           contentStyle={{ backgroundColor: '#13131A', border: '1px solid #1E1E2E', borderRadius: 6 }}
           labelStyle={{ color: '#fff', marginBottom: 4 }}
           itemStyle={{ color: '#6B7280' }}
-          formatter={(v: number) => [fmtUSD.format(v), '']}
+          formatter={(v: number, name: string) => [fmtUSD.format(v), name]}
         />
         <Legend wrapperStyle={{ color: '#6B7280', fontSize: 12 }} />
         <Line type="monotone" dataKey="pathUSD_volume" name="pathUSD" stroke="#10B981" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
