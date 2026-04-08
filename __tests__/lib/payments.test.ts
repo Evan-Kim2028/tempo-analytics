@@ -16,13 +16,19 @@ import {
 const mockQuery = queryClickHouse as jest.Mock
 const mockGetCached = getCached as jest.Mock
 const mockSetCached = setCached as jest.Mock
+const cacheStore = new Map<string, unknown>()
 
 beforeEach(() => {
   mockQuery.mockReset()
   mockGetCached.mockReset()
   mockSetCached.mockReset()
-  mockGetCached.mockResolvedValue(null)
-  mockSetCached.mockResolvedValue(undefined)
+  cacheStore.clear()
+  mockGetCached.mockImplementation(async (key: string) =>
+    cacheStore.has(key) ? cacheStore.get(key) : null,
+  )
+  mockSetCached.mockImplementation(async (key: string, value: unknown) => {
+    cacheStore.set(key, value)
+  })
 })
 
 test('exports the confirmed pathUSD payment rail', () => {
@@ -139,8 +145,82 @@ test('merges successful memo events and failed direct calls into one recent-paym
   ])
 })
 
+test('normalizes successful row topic addresses to canonical 20-byte addresses', async () => {
+  mockQuery
+    .mockResolvedValueOnce([
+      {
+        block_timestamp: '2026-04-08 12:00:00',
+        tx_hash: '0xsuccess',
+        sender: '0x0000000000000000000000001111111111111111111111111111111111111111',
+        recipient: '0x0000000000000000000000002222222222222222222222222222222222222222',
+        token: '0x20c0000000000000000000000000000000000000',
+        amount_raw: '1250000',
+        memo_hex: '0x534f432d30307a66393162640000000000000000000000000000000000000000',
+      },
+    ])
+    .mockResolvedValueOnce([])
+
+  await expect(getRecentPayments(10)).resolves.toEqual([
+    expect.objectContaining({
+      sender: '0x1111111111111111111111111111111111111111',
+      recipient: '0x2222222222222222222222222222222222222222',
+      status: 'success',
+      memo_text: 'SOC-00zf91bd',
+    }),
+  ])
+})
+
+test('uses distinct cache keys and writes per limit and days inputs', async () => {
+  mockQuery
+    .mockResolvedValueOnce([
+      {
+        block_timestamp: '2026-04-08 12:00:00',
+        tx_hash: '0xlimit10',
+        sender: '0x0000000000000000000000001111111111111111111111111111111111111111',
+        recipient: '0x0000000000000000000000002222222222222222222222222222222222222222',
+        token: '0x20c0000000000000000000000000000000000000',
+        amount_raw: '1250000',
+        memo_hex: '0x534f432d30307a66393162640000000000000000000000000000000000000000',
+      },
+    ])
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([
+      {
+        block_timestamp: '2026-04-08 12:05:00',
+        tx_hash: '0xlimit25',
+        sender: '0x0000000000000000000000003333333333333333333333333333333333333333',
+        recipient: '0x0000000000000000000000004444444444444444444444444444444444444444',
+        token: '0x20c0000000000000000000000000000000000000',
+        amount_raw: '990000',
+        memo_hex: '0xff00aa0000000000000000000000000000000000000000000000000000000000',
+      },
+    ])
+    .mockResolvedValueOnce([])
+
+  await expect(getRecentPayments(10, 30)).resolves.toEqual([
+    expect.objectContaining({
+      tx_hash: '0xlimit10',
+      sender: '0x1111111111111111111111111111111111111111',
+      recipient: '0x2222222222222222222222222222222222222222',
+    }),
+  ])
+
+  await expect(getRecentPayments(25, 7)).resolves.toEqual([
+    expect.objectContaining({
+      tx_hash: '0xlimit25',
+      sender: '0x3333333333333333333333333333333333333333',
+      recipient: '0x4444444444444444444444444444444444444444',
+    }),
+  ])
+
+  expect(mockGetCached).toHaveBeenNthCalledWith(1, 'payments:recent:10:30')
+  expect(mockGetCached).toHaveBeenNthCalledWith(2, 'payments:recent:25:7')
+  expect(mockSetCached).toHaveBeenNthCalledWith(1, 'payments:recent:10:30', expect.any(Array), 900)
+  expect(mockSetCached).toHaveBeenNthCalledWith(2, 'payments:recent:25:7', expect.any(Array), 900)
+})
+
 test('reads recent payments from cache before querying clickhouse', async () => {
-  mockGetCached.mockResolvedValueOnce([
+  cacheStore.set('payments:recent:25:30', [
     {
       timestamp: '2026-04-08 12:00:00',
       day: '2026-04-08',

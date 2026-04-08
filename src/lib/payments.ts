@@ -99,13 +99,18 @@ function normalizeAmount(amountRaw: string, decimals: number) {
   return Number(amountRaw ?? 0) / 10 ** decimals
 }
 
+function topicToAddress(value: string) {
+  const normalized = String(value).toLowerCase()
+  return `0x${normalized.slice(-40)}`
+}
+
 function buildSuccessfulPaymentsQuery(days: number) {
   return PAYMENT_METHODS.map(method => `
     SELECT
       block_timestamp,
       tx_hash,
-      concat('0x', lower(hex(topic1))) AS sender,
-      concat('0x', lower(hex(topic2))) AS recipient,
+      topic1 AS sender,
+      topic2 AS recipient,
       '${method.token}' AS token,
       toString(reinterpretAsUInt256(reverse(unhex(substr(data, 3, 64))))) AS amount_raw,
       lower(topic3) AS memo_hex
@@ -146,8 +151,8 @@ function normalizePaymentRow(row: RawPaymentRow, status: PaymentStatus): Payment
     timestamp: row.block_timestamp,
     day: sliceDay(row.block_timestamp),
     tx_hash: row.tx_hash.toLowerCase(),
-    sender: row.sender.toLowerCase(),
-    recipient: row.recipient.toLowerCase(),
+    sender: topicToAddress(row.sender),
+    recipient: topicToAddress(row.recipient),
     token: method.token,
     token_label: method.token_label,
     amount: normalizeAmount(row.amount_raw, method.decimals),
@@ -174,7 +179,7 @@ async function fetchFailedPaymentRows(days: number): Promise<RawPaymentRow[]> {
 }
 
 export async function getRecentPayments(limit = 50, days = 30): Promise<PaymentRow[]> {
-  const cacheKey = 'payments:recent'
+  const cacheKey = `payments:recent:${limit}:${days}`
   const cached = await getCached<PaymentRow[]>(cacheKey)
   if (cached !== null) return cached
 
