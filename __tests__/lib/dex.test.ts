@@ -1,13 +1,3 @@
-jest.mock('ioredis', () => {
-  const store: Record<string, string> = {}
-  return jest.fn().mockImplementation(() => ({
-    get: jest.fn(async (k: string) => store[k] ?? null),
-    set: jest.fn(async (k: string, v: string) => { store[k] = v }),
-    del: jest.fn(async (k: string) => { delete store[k] }),
-    setex: jest.fn(async (k: string, _ttl: number, v: string) => { store[k] = v }),
-  }))
-})
-
 // Mock tokenlist to return pathUSD and USDC.e as verified
 jest.mock('@/lib/tokenlist', () => ({
   getStablecoinAddresses: jest.fn().mockResolvedValue([

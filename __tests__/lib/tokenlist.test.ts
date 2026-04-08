@@ -15,16 +15,6 @@ jest.mock('@/lib/chain', () => ({
   tempoChain: {},
 }))
 
-jest.mock('ioredis', () => {
-  const store: Record<string, string> = {}
-  return jest.fn().mockImplementation(() => ({
-    get: jest.fn(async (k: string) => store[k] ?? null),
-    set: jest.fn(async (k: string, v: string) => { store[k] = v }),
-    del: jest.fn(async (k: string) => { delete store[k] }),
-    setex: jest.fn(async (k: string, _ttl: number, v: string) => { store[k] = v }),
-  }))
-})
-
 const MOCK_LIST = {
   name: 'Tempo Mainnet',
   tokens: [

@@ -18,16 +18,6 @@ jest.mock('@/lib/chain', () => ({
   tempoChain: {},
 }))
 
-// Mock ioredis (required by cache.ts)
-jest.mock('ioredis', () => {
-  const store: Record<string, string> = {}
-  return jest.fn().mockImplementation(() => ({
-    get: jest.fn(async (k: string) => store[k] ?? null),
-    set: jest.fn(async (k: string, v: string) => { store[k] = v }),
-    del: jest.fn(async (k: string) => { delete store[k] }),
-  }))
-})
-
 const TRANSFER_INPUT =
   '0xa9059cbb' +
   '000000000000000000000000abcdef1234567890abcdef1234567890abcdef12' +

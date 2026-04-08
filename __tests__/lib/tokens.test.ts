@@ -17,15 +17,6 @@ jest.mock('@/lib/chain', () => ({
   tempoChain: {},
 }))
 
-jest.mock('ioredis', () => {
-  const store: Record<string, string> = {}
-  return jest.fn().mockImplementation(() => ({
-    get: jest.fn(async (k: string) => store[k] ?? null),
-    set: jest.fn(async (k: string, v: string) => { store[k] = v }),
-    del: jest.fn(async (k: string) => { delete store[k] }),
-  }))
-})
-
 test('getTokenInfo returns static entry for pathUSD', async () => {
   const info = await getTokenInfo('0x20c0000000000000000000000000000000000000')
   expect(info).toMatchObject({ symbol: 'pathUSD', decimals: 6 })

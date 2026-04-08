@@ -1,14 +1,5 @@
 import { getCached, setCached, deleteCached } from '@/lib/cache'
 
-jest.mock('ioredis', () => {
-  const store: Record<string, string> = {}
-  return jest.fn().mockImplementation(() => ({
-    get: jest.fn(async (key: string) => store[key] ?? null),
-    set: jest.fn(async (key: string, value: string, ..._args: unknown[]) => { store[key] = value }),
-    del: jest.fn(async (key: string) => { delete store[key] }),
-  }))
-})
-
 test('getCached returns null on miss', async () => {
   const result = await getCached('missing-key')
   expect(result).toBeNull()
@@ -26,4 +17,21 @@ test('deleteCached removes a key', async () => {
   await deleteCached('del-key')
   const result = await getCached('del-key')
   expect(result).toBeNull()
+})
+
+test('setCached expires entries after the ttl elapses', async () => {
+  jest.useFakeTimers()
+  jest.setSystemTime(new Date('2026-04-08T00:00:00Z'))
+
+  const data = { hello: 'world' }
+  await setCached('ttl-key', data, 1)
+
+  expect(await getCached('ttl-key')).toEqual(data)
+
+  jest.setSystemTime(new Date('2026-04-08T00:00:02Z'))
+  expect(await getCached('ttl-key')).toBeNull()
+})
+
+afterEach(() => {
+  jest.useRealTimers()
 })
