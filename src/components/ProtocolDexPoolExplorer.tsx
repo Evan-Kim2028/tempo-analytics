@@ -130,13 +130,13 @@ export function ProtocolDexPoolExplorer({ pools }: { pools: ProtocolDexPool[] })
                     </div>
                   </td>
                   <td className="text-right px-4 py-4 text-white font-mono">
-                    {pool.whitelisted ? fmtUSD(pool.volume_usd) : '—'}
+                    {fmtUSD(pool.volume_usd)}
                   </td>
                   <td className="text-right px-4 py-4 text-tempo-muted">
                     {fmtCount(pool.swaps_30d)}
                   </td>
                   <td className="text-right px-4 py-4 text-white font-mono">
-                    {pool.whitelisted ? fmtUSD(pool.avg_trade) : '—'}
+                    {fmtUSD(pool.avg_trade)}
                   </td>
                   <td className="text-right px-4 py-4 text-tempo-muted font-mono">
                     {pool.dau_1d > 0 ? fmtCount(pool.dau_1d) : '—'}
