@@ -50,7 +50,7 @@ export default async function NFTsPage() {
         </div>
         <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
           <p className="text-tempo-muted text-xs mb-1">Top 10 Minters</p>
-          <p className="text-2xl font-semibold text-white">{concentration.top10_share_pct.toFixed(1)}%</p>
+          <p className="text-2xl font-semibold text-white">{(concentration.top10_share_pct ?? 0).toFixed(1)}%</p>
           <p className="text-tempo-muted text-xs mt-1">of all-time mints</p>
         </div>
       </div>
@@ -97,8 +97,8 @@ export default async function NFTsPage() {
         <div className="px-6 py-4 border-b border-tempo-border">
           <h2 className="text-base font-medium text-white">Minter Concentration</h2>
           <p className="text-tempo-muted text-xs mt-1">
-            {concentration.unique_minters.toLocaleString()} unique minters,{' '}
-            {concentration.total_mints.toLocaleString()} total all-time mints
+            {(concentration.unique_minters ?? 0).toLocaleString()} unique minters,{' '}
+            {(concentration.total_mints ?? 0).toLocaleString()} total all-time mints
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -122,7 +122,7 @@ export default async function NFTsPage() {
                     </a>
                   </td>
                   <td className="text-right px-4 py-4 text-white font-mono">{fmtCount(m.mints)}</td>
-                  <td className="text-right px-4 py-4 text-tempo-muted">{m.pct_total.toFixed(1)}%</td>
+                  <td className="text-right px-4 py-4 text-tempo-muted">{(m.pct_total ?? 0).toFixed(1)}%</td>
                   <td className="text-right px-6 py-4 text-tempo-muted">{m.collections}</td>
                 </tr>
               ))}

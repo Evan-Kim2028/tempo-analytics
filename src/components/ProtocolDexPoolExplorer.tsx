@@ -1,5 +1,5 @@
 'use client'
-import { Fragment, useState, useCallback } from 'react'
+import { Fragment, useState, useCallback, useRef } from 'react'
 import type { ProtocolDexPool, ProtocolDexTrade } from '@/lib/analytics'
 
 type SortKey = 'volume' | 'swaps' | 'avg_trade'
@@ -26,6 +26,8 @@ export function ProtocolDexPoolExplorer({ pools }: { pools: ProtocolDexPool[] })
   const [expandedToken, setExpandedToken]   = useState<string | null>(null)
   const [trades, setTrades]                 = useState<ProtocolDexTrade[]>([])
   const [tradesLoading, setTradesLoading]   = useState(false)
+  const [tradesError, setTradesError]       = useState(false)
+  const abortRef                            = useRef<AbortController | null>(null)
 
   const filtered = pools
     .filter(p => !showKnownOnly || p.whitelisted)
@@ -38,15 +40,22 @@ export function ProtocolDexPoolExplorer({ pools }: { pools: ProtocolDexPool[] })
   const togglePool = useCallback(async (token: string) => {
     if (expandedToken === token) {
       setExpandedToken(null)
+      abortRef.current?.abort()
       return
     }
+    abortRef.current?.abort()
+    abortRef.current = new AbortController()
     setExpandedToken(token)
     setTrades([])
+    setTradesError(false)
     setTradesLoading(true)
     try {
-      const res  = await fetch(`/api/protocol-dex/pool-trades?token=${token}`)
+      const res  = await fetch(`/api/protocol-dex/pool-trades?token=${token}`, { signal: abortRef.current.signal })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json() as ProtocolDexTrade[]
       setTrades(data)
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') setTradesError(true)
     } finally {
       setTradesLoading(false)
     }
@@ -142,6 +151,8 @@ export function ProtocolDexPoolExplorer({ pools }: { pools: ProtocolDexPool[] })
                       </p>
                       {tradesLoading ? (
                         <p className="text-tempo-muted text-xs">Loading…</p>
+                      ) : tradesError ? (
+                        <p className="text-red-400 text-xs">Failed to load trades. Try again.</p>
                       ) : trades.length === 0 ? (
                         <p className="text-tempo-muted text-xs">No recent trades found.</p>
                       ) : (
