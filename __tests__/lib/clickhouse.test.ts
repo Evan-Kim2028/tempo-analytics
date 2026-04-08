@@ -28,4 +28,17 @@ describe('queryClickHouse', () => {
       expect.objectContaining({ cache: 'no-store' }),
     )
   })
+
+  test('defaults CLICKHOUSE_URL to localhost when unset', async () => {
+    delete process.env.CLICKHOUSE_URL
+    process.env.CLICKHOUSE_DB = 'tempo_test'
+
+    const { queryClickHouse } = await import('@/lib/clickhouse')
+    await queryClickHouse('SELECT 1')
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('http://localhost:8123/'),
+      expect.objectContaining({ cache: 'no-store' }),
+    )
+  })
 })

@@ -44,7 +44,7 @@ export async function decodeCalldata(
     const knownName = lookupSelector(selector)
     if (knownName) return { functionName: knownName }
 
-    // Unknown selector: try WhatsABI (with Redis cache per contract)
+    // Unknown selector: try WhatsABI (best-effort cache per contract)
     if (to) {
       return decodeWithWhatsABI(to as `0x${string}`, input as `0x${string}`)
     }
@@ -98,7 +98,7 @@ async function decodeWithWhatsABI(
         abi = rawAbi as unknown[]
       }
 
-      await setCached(cacheKey, abi, 3600) // 1h — ABI doesn't change
+      await setCached(cacheKey, abi, 3600) // 1h - ABI doesn't change often
     }
 
     const { functionName, args } = decodeFunctionData({

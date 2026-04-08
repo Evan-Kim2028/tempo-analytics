@@ -65,7 +65,7 @@ export async function getTokenInfo(address: string): Promise<TokenInfo | null> {
   const listed = await getTokenFromList(lower)
   if (listed) return listed
 
-  // 3. Redis cache (previously RPC-fetched unknowns)
+  // 3. Best-effort cache for previously RPC-fetched unknowns
   const cacheKey = `token:meta:${lower}`
   const cached = await getCached<TokenInfo>(cacheKey)
   if (cached) return cached
