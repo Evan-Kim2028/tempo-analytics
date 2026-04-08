@@ -26,7 +26,9 @@ interface RawBridgeAdapterTouchRow {
   address: string
 }
 
-interface BridgeTransferEvent {
+type BridgeTransferClassification = 'strict_user_flow' | 'internal_rebalance' | 'unmatched_adapter_touch'
+
+interface ClassifiedBridgeTransfer {
   day: string
   provider: string
   provider_label: string
@@ -36,6 +38,8 @@ interface BridgeTransferEvent {
   tx_hash: string
   direction: 'inflow' | 'outflow'
   amount: number
+  classification: BridgeTransferClassification
+  headline: boolean
 }
 
 interface BridgeFlowAccumulator {
@@ -71,6 +75,7 @@ export interface DailyBridgeProviderAssetFlow {
 
 const bridgeTokenContracts = BRIDGE_CONTRACTS.filter(contract => contract.role === 'token')
 const bridgeTokenAddresses = getBridgeTokenAddresses()
+const bridgeOwnedAddresses = new Set(BRIDGE_CONTRACTS.map(contract => contract.address.toLowerCase()))
 
 const providerLabelById = new Map(BRIDGE_PROVIDERS.map(provider => [provider.id, provider.label]))
 const tokenContractByAddress = new Map(
@@ -110,11 +115,10 @@ function classifyBridgeTransfer(
   row: RawBridgeTransferRow,
   decimalsByToken: Map<string, number>,
   adapterTxHashesByProvider: Map<string, Set<string>>,
-): BridgeTransferEvent | null {
+): ClassifiedBridgeTransfer | null {
   const token = row.address.toLowerCase()
   const contract = tokenContractByAddress.get(token)
   if (!contract || !isStrictMintOrBurn(row)) return null
-  if (!adapterTxHashesByProvider.get(contract.provider)?.has(row.tx_hash.toLowerCase())) return null
 
   const topic1 = row.topic1.toLowerCase()
   const topic2 = row.topic2.toLowerCase()
@@ -122,6 +126,17 @@ function classifyBridgeTransfer(
   const user = isMint ? topicToAddress(topic2) : topicToAddress(topic1)
   const amountRaw = parseAmount(row.data)
   const decimals = decimalsByToken.get(token) ?? FALLBACK_DECIMALS
+  const hasProviderAdapterTouch = adapterTxHashesByProvider.get(contract.provider)?.has(row.tx_hash.toLowerCase()) ?? false
+  const isBridgeOwnedRecipient = bridgeOwnedAddresses.has(user)
+
+  let classification: BridgeTransferClassification
+  if (!hasProviderAdapterTouch) {
+    classification = 'unmatched_adapter_touch'
+  } else if (isBridgeOwnedRecipient) {
+    classification = 'internal_rebalance'
+  } else {
+    classification = 'strict_user_flow'
+  }
 
   return {
     day: getDayFromTimestamp(row.block_timestamp),
@@ -133,6 +148,8 @@ function classifyBridgeTransfer(
     tx_hash: row.tx_hash.toLowerCase(),
     direction: isMint ? 'inflow' : 'outflow',
     amount: amountToFloat(amountRaw, decimals),
+    classification,
+    headline: classification === 'strict_user_flow',
   }
 }
 
@@ -207,7 +224,7 @@ function buildAdapterTxHashesByProvider(rows: RawBridgeAdapterTouchRow[]): Map<s
   return byProvider
 }
 
-function rollupBridgeTransfers(events: BridgeTransferEvent[]): {
+function rollupBridgeTransfers(events: ClassifiedBridgeTransfer[]): {
   providerRows: DailyBridgeProviderFlow[]
   assetRows: DailyBridgeProviderAssetFlow[]
 } {
@@ -291,7 +308,7 @@ function rollupBridgeTransfers(events: BridgeTransferEvent[]): {
   return { providerRows, assetRows }
 }
 
-async function getBridgeTransferEvents(days: number): Promise<BridgeTransferEvent[]> {
+async function getBridgeTransferClassifications(days: number): Promise<ClassifiedBridgeTransfer[]> {
   const tokenRows = await fetchBridgeTransferRows(days)
   if (tokenRows.length === 0) return []
 
@@ -300,11 +317,14 @@ async function getBridgeTransferEvents(days: number): Promise<BridgeTransferEven
     fetchBridgeAdapterTouchRows(days).then(buildAdapterTxHashesByProvider),
   ])
 
-  const events = tokenRows
+  return tokenRows
     .map(row => classifyBridgeTransfer(row, decimalsByToken, adapterTxHashesByProvider))
-    .filter((event): event is BridgeTransferEvent => event !== null)
+    .filter((event): event is ClassifiedBridgeTransfer => event !== null)
+}
 
-  return events
+async function getStrictBridgeTransferEvents(days: number): Promise<ClassifiedBridgeTransfer[]> {
+  const classifications = await getBridgeTransferClassifications(days)
+  return classifications.filter(event => event.headline)
 }
 
 export async function getDailyBridgeProviderFlows(days = 30): Promise<DailyBridgeProviderFlow[]> {
@@ -312,7 +332,7 @@ export async function getDailyBridgeProviderFlows(days = 30): Promise<DailyBridg
   const cached = await getCached<DailyBridgeProviderFlow[]>(key)
   if (cached) return cached
 
-  const events = await getBridgeTransferEvents(days)
+  const events = await getStrictBridgeTransferEvents(days)
   const { providerRows } = rollupBridgeTransfers(events)
 
   await setCached(key, providerRows, CACHE_TTL_SECONDS)
@@ -324,7 +344,7 @@ export async function getDailyBridgeProviderAssetFlows(days = 30): Promise<Daily
   const cached = await getCached<DailyBridgeProviderAssetFlow[]>(key)
   if (cached) return cached
 
-  const events = await getBridgeTransferEvents(days)
+  const events = await getStrictBridgeTransferEvents(days)
   const { assetRows } = rollupBridgeTransfers(events)
 
   await setCached(key, assetRows, CACHE_TTL_SECONDS)

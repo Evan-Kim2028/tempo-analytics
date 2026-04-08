@@ -177,6 +177,27 @@ test('mint with matching provider adapter touch is included in provider and asse
   ])
 })
 
+test('mint to a bridge-owned address with matching adapter touch is excluded from headline output', async () => {
+  const txHash = '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
+  const tokenRows = [
+    makeTokenRow({
+      block_timestamp: '2026-04-08 12:00:00',
+      address: STARGATE_USDC_TOKEN,
+      from: ZERO_TOPIC,
+      to: STARGATE_USDC_ADAPTER,
+      amount: 1_500_000n,
+      tx_hash: txHash,
+    }),
+  ]
+  const adapterRows = [makeAdapterTouchRow(txHash, STARGATE_USDC_ADAPTER)]
+
+  mockStrictFlowQueries(tokenRows, adapterRows)
+  expect(await getDailyBridgeProviderFlows(30)).toEqual([])
+
+  mockStrictFlowQueries(tokenRows, adapterRows)
+  expect(await getDailyBridgeProviderAssetFlows(30)).toEqual([])
+})
+
 test('provider rollup sums multiple asset rows and distinct strict headline tx hashes', async () => {
   const tokenRows = [
     makeTokenRow({
