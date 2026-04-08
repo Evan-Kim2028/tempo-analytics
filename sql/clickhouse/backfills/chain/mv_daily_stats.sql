@@ -1,0 +1,14 @@
+-- sql/clickhouse/backfills/chain/mv_daily_stats.sql
+-- Backfill for tidx_4217.mv_daily_stats
+-- Apply after sql/clickhouse/views/chain/mv_daily_stats.sql
+
+INSERT INTO tidx_4217.mv_daily_stats
+SELECT
+  toDate(block_timestamp),
+  count(),
+  countIf(call_count > 1),
+  countIf(fee_payer != from),
+  countIf(to != '0x0000000000000000000000000000000000000000' AND NOT startsWith(lower(input), '0x7b')),
+  countIf(to = '0x0000000000000000000000000000000000000000' AND NOT startsWith(lower(input), '0x7b')),
+  countIf(startsWith(lower(input), '0x7b'))
+FROM tidx_4217.txs GROUP BY toDate(block_timestamp);
