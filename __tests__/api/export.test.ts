@@ -3,80 +3,102 @@
  */
 import { NextRequest } from 'next/server'
 
-jest.mock('@/lib/mpp', () => ({
-  createChallenge: jest.fn(() => ({
-    price: '0.10', currency: 'USDC', recipient: '0xpayaddr', nonce: 'abc123', expires: 9999999999,
-  })),
-  verifyPayment: jest.fn(),
+// Mock mppx/server before importing the route
+const mockCompose = jest.fn()
+const mockTempoCharge = jest.fn()
+const mockSolanaCharge = jest.fn()
+
+jest.mock('mppx/server', () => ({
+  Mppx: {
+    create: jest.fn(() => ({
+      tempo: { charge: mockTempoCharge },
+      solana: { charge: mockSolanaCharge },
+      compose: jest.fn((..._entries: unknown[]) => mockCompose),
+    })),
+  },
+  tempo: {
+    charge: jest.fn(() => ({})),
+  },
 }))
+
+jest.mock('mppx-solana', () => ({
+  server: jest.fn(() => ({})),
+}), { virtual: true })
 
 jest.mock('@/lib/tidx', () => ({
   queryTidx: jest.fn(),
 }))
 
-import { createChallenge, verifyPayment } from '@/lib/mpp'
 import { queryTidx } from '@/lib/tidx'
 
-// Dynamic import to pick up mocks
+// Dynamic import so mocks are in place first
 async function getRoute() {
   const mod = await import('@/app/api/export/route')
   return mod.POST
 }
 
-function makeRequest(body: unknown, paymentHeader?: string) {
+function makeRequest(body: unknown, authHeader?: string) {
   return new NextRequest('http://localhost/api/export', {
     method: 'POST',
     body: JSON.stringify(body),
     headers: {
       'Content-Type': 'application/json',
-      ...(paymentHeader ? { 'X-Payment': paymentHeader } : {}),
+      ...(authHeader ? { Authorization: authHeader } : {}),
     },
   })
 }
 
+const mock402 = new Response(null, {
+  status: 402,
+  headers: { 'WWW-Authenticate': 'Payment id="abc", realm="localhost", method="tempo", intent="charge", request="eyJ0ZXN0IjoidHJ1ZSJ9"' },
+})
+
 beforeEach(() => {
   jest.clearAllMocks()
-})
-
-test('returns 402 with challenge when no X-Payment header', async () => {
-  const POST = await getRoute()
-  const res = await POST(makeRequest({ query: 'account-types' }))
-  expect(res.status).toBe(402)
-  const body = await res.json()
-  expect(body.challenge.price).toBe('0.10')
-  expect(createChallenge).toHaveBeenCalled()
-})
-
-test('returns 402 when payment verification fails', async () => {
-  ;(verifyPayment as jest.Mock).mockResolvedValue({ ok: false, error: 'Payment tx already used' })
-  const POST = await getRoute()
-  const res = await POST(makeRequest({ query: 'account-types' }, '0x' + 'a'.repeat(64)))
-  expect(res.status).toBe(402)
-  const body = await res.json()
-  expect(body.error).toMatch(/already used/)
+  mockCompose.mockResolvedValue({ status: 402, challenge: mock402 })
 })
 
 test('returns 400 for unknown query key', async () => {
-  ;(verifyPayment as jest.Mock).mockResolvedValue({ ok: true })
   const POST = await getRoute()
-  const res = await POST(makeRequest({ query: 'unknown-view' }, '0x' + 'a'.repeat(64)))
+  const res = await POST(makeRequest({ query: 'unknown-view' }))
+  expect(res.status).toBe(400)
+  const body = await res.json()
+  expect(body.error).toMatch(/Unknown export query/)
+})
+
+test('returns 400 when query key is missing', async () => {
+  const POST = await getRoute()
+  const res = await POST(makeRequest({}))
   expect(res.status).toBe(400)
 })
 
-test('returns CSV when payment valid and query known', async () => {
-  ;(verifyPayment as jest.Mock).mockResolvedValue({ ok: true })
-  ;(queryTidx as jest.Mock).mockResolvedValue({
-    columns: ['sig_type', 'count'],
-    rows: [{ sig_type: 0, count: 100 }, { sig_type: 2, count: 50 }],
-    row_count: 2,
-    engine: 'clickhouse',
-    query_time_ms: 5,
-  })
+test('returns 402 challenge when no Authorization header', async () => {
   const POST = await getRoute()
-  const res = await POST(makeRequest({ query: 'account-types' }, '0x' + 'a'.repeat(64)))
+  const res = await POST(makeRequest({ query: 'account-types' }))
+  expect(res.status).toBe(402)
+  expect(res.headers.get('WWW-Authenticate')).toMatch(/Payment/)
+})
+
+test('returns CSV when compose accepts payment', async () => {
+  const withReceipt = jest.fn((r: Response) => r)
+  mockCompose.mockResolvedValue({ status: 200, withReceipt })
+  ;(queryTidx as jest.Mock).mockResolvedValue({
+    columns: ['signature_type', 'count', 'pct'],
+    rows: [{ signature_type: 0, count: 100, pct: 75 }],
+  })
+
+  const POST = await getRoute()
+  const res = await POST(makeRequest({ query: 'account-types' }, 'Payment eyJ...'))
   expect(res.status).toBe(200)
   expect(res.headers.get('Content-Type')).toMatch(/text\/csv/)
-  const body = await res.text()
-  expect(body).toContain('sig_type,count')
-  expect(body).toContain('0,100')
+  const text = await res.text()
+  expect(text).toContain('signature_type,count,pct')
+  expect(text).toContain('0,100,75')
+  expect(withReceipt).toHaveBeenCalled()
+})
+
+test('compose is called with tempo and solana entries', async () => {
+  const POST = await getRoute()
+  await POST(makeRequest({ query: 'account-types' }))
+  expect(mockCompose).toHaveBeenCalled()
 })
