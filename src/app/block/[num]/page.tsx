@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getCached, setCached } from '@/lib/cache'
 import { queryTidx } from '@/lib/tidx'
 import type { TidxRow } from '@/lib/tidx'
+import { CopyableHash } from '@/components/CopyableHash'
 
 export const revalidate = 300
 
@@ -119,10 +120,8 @@ export default async function BlockPage({ params }: { params: Promise<{ num: str
                   const feeToken = tx.fee_token ? String(tx.fee_token) : null
                   return (
                     <tr key={hash} className="border-b border-tempo-border last:border-0 hover:bg-tempo-border/30 transition-colors">
-                      <td className="px-4 py-3 font-mono">
-                        <a href={`/tx/${hash}`} className="text-tempo-blue hover:underline">
-                          {hash.slice(0, 10)}…{hash.slice(-8)}
-                        </a>
+                      <td className="px-4 py-3">
+                        <CopyableHash hash={hash} display={`${hash.slice(0, 10)}…${hash.slice(-8)}`} />
                       </td>
                       <td className="px-4 py-3 font-mono text-xs">
                         <a href={`/address/${from}`} className="text-white hover:text-tempo-blue">

@@ -1,4 +1,5 @@
 import type { PaymentRow } from '@/lib/payments'
+import { CopyableHash } from '@/components/CopyableHash'
 
 const amountFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -41,7 +42,7 @@ export function RecentPaymentsTable({ rows }: { rows: PaymentRow[] }) {
                     {row.status}
                   </span>
                 </td>
-                <td className="px-4 py-4 text-xs font-mono"><a href={`/tx/${row.tx_hash}`} className="text-tempo-blue hover:underline">{shortenAddress(row.tx_hash)}</a></td>
+                <td className="px-4 py-4"><CopyableHash hash={row.tx_hash} display={shortenAddress(row.tx_hash)} /></td>
                 <td className="px-4 py-4 text-xs font-mono"><a href={`/address/${row.sender}`} className="text-tempo-blue hover:underline">{shortenAddress(row.sender)}</a></td>
                 <td className="px-4 py-4 text-xs font-mono"><a href={`/address/${row.recipient}`} className="text-tempo-blue hover:underline">{shortenAddress(row.recipient)}</a></td>
                 <td className="px-4 py-4 text-white">{row.token_label}</td>

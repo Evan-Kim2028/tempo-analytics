@@ -1,3 +1,5 @@
+import { CopyableHash } from '@/components/CopyableHash'
+
 interface TxRow {
   hash: string
   block_num: number
@@ -38,9 +40,7 @@ export function AddressTxList({ txs, address }: { txs: TxRow[]; address: string 
             return (
               <tr key={tx.hash} className="border-b border-tempo-border last:border-0 hover:bg-white/5">
                 <td className="px-4 py-3">
-                  <a href={`/tx/${tx.hash}`} className="text-tempo-blue font-mono text-xs hover:underline truncate block max-w-[140px]">
-                    {tx.hash.slice(0, 18)}…
-                  </a>
+                  <CopyableHash hash={tx.hash} display={`${tx.hash.slice(0, 18)}…`} />
                 </td>
                 <td className="px-4 py-3 text-tempo-muted font-mono text-xs hidden md:table-cell">
                   {tx.block_num.toLocaleString()}
