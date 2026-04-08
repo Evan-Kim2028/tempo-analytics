@@ -545,3 +545,75 @@ export async function getTopPools(limit = 10): Promise<PoolStat[]> {
   await setCached(key, pools, 3600)
   return pools
 }
+
+export interface FeeTokenDailyStat {
+  day: string
+  usdc_e: number    // tx count using USDC.e as fee token
+  pathusd: number   // tx count using pathUSD as fee token
+  others: number    // tx count using other tokens
+  total: number
+}
+
+export async function getFeeTokenDailyStats(days = 30): Promise<FeeTokenDailyStat[]> {
+  const key = `analytics:fee_token_daily:${days}`
+  const cached = await getCached<FeeTokenDailyStat[]>(key)
+  if (cached) return cached
+
+  const USDC_E = '0x20c000000000000000000000b9537d11c60e8b50'
+  const PATHUSD = '0x20c0000000000000000000000000000000000000'
+
+  const rows = await queryClickHouse<{
+    day: string; usdc_e: string; pathusd: string; others: string
+  }>(`
+    SELECT
+      day,
+      sumIf(txs, fee_token = '${USDC_E}')  AS usdc_e,
+      sumIf(txs, fee_token = '${PATHUSD}') AS pathusd,
+      sumIf(txs, fee_token NOT IN ('${USDC_E}', '${PATHUSD}')) AS others
+    FROM mv_fee_token_daily
+    WHERE day >= today() - ${days}
+    GROUP BY day
+    ORDER BY day ASC
+  `)
+
+  const result: FeeTokenDailyStat[] = rows.map(r => {
+    const usdc_e = Number(r.usdc_e)
+    const pathusd = Number(r.pathusd)
+    const others = Number(r.others)
+    return { day: String(r.day).slice(0, 10), usdc_e, pathusd, others, total: usdc_e + pathusd + others }
+  })
+
+  await setCached(key, result, 900)
+  return result
+}
+
+export interface ProtocolDexDailyStat {
+  day: string
+  swaps: number
+  volume_usd: number
+}
+
+export async function getProtocolDexDailyStats(days = 30): Promise<ProtocolDexDailyStat[]> {
+  const key = `analytics:protocol_dex:${days}`
+  const cached = await getCached<ProtocolDexDailyStat[]>(key)
+  if (cached) return cached
+
+  const rows = await queryClickHouse<{
+    day: string; swaps: string; volume_raw: string
+  }>(`
+    SELECT day, sum(swaps) AS swaps, sum(volume_raw) AS volume_raw
+    FROM mv_protocol_dex_daily
+    WHERE day >= today() - ${days}
+    GROUP BY day
+    ORDER BY day ASC
+  `)
+
+  const result: ProtocolDexDailyStat[] = rows.map(r => ({
+    day: String(r.day).slice(0, 10),
+    swaps: Number(r.swaps),
+    volume_usd: Number(r.volume_raw) / 1e6,
+  }))
+
+  await setCached(key, result, 900)
+  return result
+}
