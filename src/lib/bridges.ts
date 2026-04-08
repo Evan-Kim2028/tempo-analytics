@@ -383,6 +383,45 @@ export async function getDailyBridgeProviderFlows(days = 30): Promise<DailyBridg
   return providerRows
 }
 
+export interface BridgeNetInflowChartData {
+  /** One record per day; keys are provider IDs + 'day' */
+  days:      Array<Record<string, string | number>>
+  /** Providers sorted by period net_flow total descending */
+  providers: Array<{ id: string; label: string; total: number }>
+}
+
+export async function getBridgeNetInflowChartData(days = 30): Promise<BridgeNetInflowChartData> {
+  const key = `analytics:bridge_net_inflow_chart:${days}`
+  const cached = await getCached<BridgeNetInflowChartData>(key)
+  if (cached) return cached
+
+  const providerRows = await getDailyBridgeProviderFlows(days)
+
+  // Aggregate totals per provider
+  const providerTotals = new Map<string, { label: string; total: number }>()
+  for (const row of providerRows) {
+    const existing = providerTotals.get(row.provider) ?? { label: row.provider_label, total: 0 }
+    existing.total += row.net_flow
+    providerTotals.set(row.provider, existing)
+  }
+
+  const providers = [...providerTotals.entries()]
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([id, { label, total }]) => ({ id, label, total }))
+
+  // Pivot rows by day
+  const dayMap = new Map<string, Record<string, string | number>>()
+  for (const row of providerRows) {
+    if (!dayMap.has(row.day)) dayMap.set(row.day, { day: row.day })
+    dayMap.get(row.day)![row.provider] = row.net_flow
+  }
+  const dayRows = [...dayMap.values()].sort((a, b) => String(a.day).localeCompare(String(b.day)))
+
+  const result: BridgeNetInflowChartData = { days: dayRows, providers }
+  await setCached(key, result, CACHE_TTL_SECONDS)
+  return result
+}
+
 export async function getDailyBridgeProviderAssetFlows(days = 30): Promise<DailyBridgeProviderAssetFlow[]> {
   const key = `analytics:bridge_provider_asset_flows:${days}`
   const cached = await getCached<DailyBridgeProviderAssetFlow[]>(key)
