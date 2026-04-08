@@ -33,6 +33,19 @@ describe('verifyBridgeFlowSample', () => {
     expect(result).toEqual({ ok: true, reason: 'matched_receipt_logs' })
   })
 
+  test('matches provider contracts case-insensitively', async () => {
+    publicClient.getTransactionReceipt.mockResolvedValue({
+      logs: [{ address: '0xabc0000000000000000000000000000000000000' }],
+    })
+
+    const result = await verifyBridgeFlowSample({
+      tx_hash: '0x4444444444444444444444444444444444444444444444444444444444444444',
+      provider_contracts: ['0xAbC0000000000000000000000000000000000000'],
+    })
+
+    expect(result).toEqual({ ok: true, reason: 'matched_receipt_logs' })
+  })
+
   test('returns provider_contract_not_seen when receipt exists but no provider contract is present', async () => {
     publicClient.getTransactionReceipt.mockResolvedValue({
       logs: [{ address: '0xdef0000000000000000000000000000000000000' }],

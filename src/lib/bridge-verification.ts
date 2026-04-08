@@ -1,8 +1,10 @@
 import { publicClient } from '@/lib/chain'
 
+type HexString = `0x${string}`
+
 export interface BridgeFlowSample {
-  tx_hash: string
-  provider_contracts: string[]
+  tx_hash: HexString
+  provider_contracts: HexString[]
 }
 
 export type BridgeVerificationResult =
@@ -12,23 +14,25 @@ export type BridgeVerificationResult =
 export async function verifyBridgeFlowSample(
   sample: BridgeFlowSample,
 ): Promise<BridgeVerificationResult> {
+  let receipt: Awaited<ReturnType<typeof publicClient.getTransactionReceipt>>
+
   try {
-    const receipt = await publicClient.getTransactionReceipt({
-      hash: sample.tx_hash as `0x${string}`,
+    receipt = await publicClient.getTransactionReceipt({
+      hash: sample.tx_hash,
     })
-
-    const providerContracts = new Set(
-      sample.provider_contracts.map(address => address.toLowerCase()),
-    )
-
-    const matched = receipt.logs.some(log =>
-      providerContracts.has(log.address.toLowerCase()),
-    )
-
-    return matched
-      ? { ok: true, reason: 'matched_receipt_logs' }
-      : { ok: false, reason: 'provider_contract_not_seen' }
   } catch {
     return { ok: false, reason: 'rpc_error' }
   }
+
+  const providerContracts = new Set(
+    sample.provider_contracts.map(address => address.toLowerCase()),
+  )
+
+  const matched = receipt.logs.some(log =>
+    providerContracts.has(log.address.toLowerCase()),
+  )
+
+  return matched
+    ? { ok: true, reason: 'matched_receipt_logs' }
+    : { ok: false, reason: 'provider_contract_not_seen' }
 }
