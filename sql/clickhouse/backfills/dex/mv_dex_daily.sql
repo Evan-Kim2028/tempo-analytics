@@ -1,0 +1,9 @@
+-- sql/clickhouse/backfills/dex/mv_dex_daily.sql
+-- Backfill for tidx_4217.mv_dex_daily
+-- Apply after sql/clickhouse/views/dex/mv_dex_daily.sql
+
+INSERT INTO tidx_4217.mv_dex_daily
+SELECT toDate(block_timestamp), address, count()
+FROM tidx_4217.logs
+WHERE selector = '0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822'
+GROUP BY toDate(block_timestamp), address;
