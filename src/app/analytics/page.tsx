@@ -1,167 +1,147 @@
 import {
-  getDailyStats, getSignatureTypeStats, getNetworkSummary, getDailyStatsCategorized,
-  getStablecoinDailyVolume, getDexDailyActivity, getTopDexPairs,
-  getTopNFTCollections,
+  getDailyStats,
+  getStablecoinStats,
+  getStablecoinDailyVolume,
+  getProtocolDexDailyStats,
+  getDexDailyVolumeUSD,
+  type DexDailyVolumeUSD,
 } from '@/lib/analytics'
-import { getInscriptionTotals } from '@/lib/inscriptions'
+import { getProtocolDexTVL } from '@/lib/defi'
 import { StatCard } from '@/components/StatCard'
-import { ActivityChart } from '@/components/charts/ActivityChart'
 import { TempoFeaturesChart } from '@/components/charts/TempoFeaturesChart'
-import { SigTypePie } from '@/components/charts/SigTypePie'
-import { TxCategoryChart } from '@/components/charts/TxCategoryChart'
-import { InscriptionChart } from '@/components/charts/InscriptionChart'
 import { StablecoinVolumeChart } from '@/components/charts/StablecoinVolumeChart'
-import { DexActivityChart } from '@/components/charts/DexActivityChart'
-import { ExportButton } from '@/components/ExportButton'
+import { DexVolumeChart } from '@/components/charts/DexVolumeChart'
 
-export const revalidate = 900 // 15 min
+export const revalidate = 900
 
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-tempo-card border border-tempo-border rounded-lg p-6">
-      <h2 className="text-sm font-medium text-tempo-muted uppercase tracking-wide mb-4">{title}</h2>
-      {children}
-    </div>
-  )
-}
+const fmtUSD = (n: number) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 2,
+  }).format(n)
+
+const fmtCount = (n: number) =>
+  new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 
 export default async function AnalyticsPage() {
-  const [daily, sigTypes, summary, categorized, inscriptionTotals, stablecoins, dexDaily, topPairs, topNFTs] = await Promise.all([
+  const [daily, stablecoinStats, stablecoinDaily, protocolDaily, protocolTVL, communityDaily] = await Promise.all([
     getDailyStats(30),
-    getSignatureTypeStats(),
-    getNetworkSummary(),
-    getDailyStatsCategorized(30),
-    getInscriptionTotals(),
+    getStablecoinStats(),
     getStablecoinDailyVolume(30),
-    getDexDailyActivity(30),
-    getTopDexPairs(10),
-    getTopNFTCollections(10),
+    getProtocolDexDailyStats(30),
+    getProtocolDexTVL(),
+    getDexDailyVolumeUSD(30),
   ])
+
+  // AA Features aggregates (30d)
+  const batchTxs30d = daily.reduce((s, d) => s + d.batch_txs, 0)
+  const sponsoredTxs30d = daily.reduce((s, d) => s + d.sponsored_txs, 0)
+
+  // Stablecoin aggregates
+  const totalSupply = stablecoinStats.reduce((s, t) => s + (t.supply ?? 0), 0)
+  const totalVol30d = stablecoinStats.reduce((s, t) => s + t.volume_30d, 0)
+  const totalXfers30d = stablecoinStats.reduce((s, t) => s + t.transfers_30d, 0)
+
+  // Protocol DEX aggregates
+  const protocolSwaps30d = protocolDaily.reduce((s, d) => s + d.swaps, 0)
+  const protocolVol30d = protocolDaily.reduce((s, d) => s + d.volume_usd, 0)
+
+  // Protocol DEX chart data (adapt to DexDailyVolumeUSD shape)
+  const protocolForChart: DexDailyVolumeUSD[] = protocolDaily.map(d => ({
+    day: d.day,
+    volume_usd: d.volume_usd,
+    swap_count: d.swaps,
+  }))
+
+  // Community DEX aggregates
+  const communityVol30d = communityDaily.reduce((s, d) => s + d.volume_usd, 0)
+  const communitySwaps30d = communityDaily.reduce((s, d) => s + d.swap_count, 0)
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-white">Analytics</h1>
-        <span className="text-tempo-muted text-xs">Updates every 15 min · Mainnet data</span>
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-white mb-1">Overview</h1>
+        <p className="text-tempo-muted text-sm">Key metrics across Tempo Mainnet</p>
       </div>
 
-      {/* Summary stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-        <StatCard label="Total Transactions" value={summary.total_txs.toLocaleString()} />
-        <StatCard label="Unique Addresses" value={summary.total_addresses.toLocaleString()} />
-        <StatCard label="Contracts Deployed" value={summary.contract_deployments.toLocaleString()} />
-        <StatCard label="Batch Txs" value={summary.batch_txs.toLocaleString()} />
-        <StatCard label="Sponsored Txs" value={summary.sponsored_txs.toLocaleString()} />
-      </div>
+      {/* ── Section 1: AA Features ── */}
+      <section className="mb-12">
+        <h2 className="text-lg font-semibold text-white mb-4">AA Features</h2>
 
-      {/* Daily activity — 30-day line chart */}
-      <div className="mb-6">
-        <ChartCard title="Daily Activity — last 30 days">
-          <ActivityChart data={daily} />
-        </ChartCard>
-      </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <StatCard label="Batch Call Txs (30d)" value={fmtCount(batchTxs30d)} />
+          <StatCard label="Sponsored Txs (30d)" value={fmtCount(sponsoredTxs30d)} />
+        </div>
 
-      {/* Transaction category breakdown */}
-      <div className="mb-6">
-        <ChartCard title="Transaction Breakdown — user vs protocol vs inscriptions">
-          <p className="text-tempo-muted text-xs mb-3">
-            ~84% of Tempo transactions are protocol-level operations (block records, consensus).
-            User and inscription activity is shown separately.
-          </p>
-          <TxCategoryChart data={categorized} />
-        </ChartCard>
-      </div>
-
-      {/* Tempo-specific features + sig types */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <ChartCard title="Tempo AA Features — batch calls & sponsorship">
+        <div className="bg-tempo-card border border-tempo-border rounded-lg p-6">
+          <h3 className="text-sm font-medium text-white mb-4">Daily Batch &amp; Sponsored Txs (30d)</h3>
           <TempoFeaturesChart data={daily} />
-        </ChartCard>
-        <ChartCard title="Signature Types — all time">
-          <SigTypePie data={sigTypes} />
-        </ChartCard>
-      </div>
-
-      {/* TIP-20 inscriptions */}
-      {inscriptionTotals.length > 0 && (
-        <div className="mb-8">
-          <ChartCard title="TIP-20 Inscriptions — all-time mint volume by ticker">
-            <p className="text-tempo-muted text-xs mb-3">
-              TIP-20 inscriptions use JSON calldata — the BRC-20 pattern on Tempo.
-              Tickers like TEMP, MEME, and tempodz have active mint communities.
-            </p>
-            <InscriptionChart totals={inscriptionTotals} />
-          </ChartCard>
         </div>
-      )}
+      </section>
 
-      {/* Stablecoin transfer volume */}
-      <div className="mb-6">
-        <ChartCard title="Stablecoin Transfer Volume — pathUSD & USDC.e daily">
-          <p className="text-tempo-muted text-xs mb-3">
-            pathUSD (supply: ~$3.94M) and USDC.e (supply: ~$2.54M) are the primary fee-paying
-            stablecoins. High velocity: total on-chain volume far exceeds supply.
-          </p>
-          <StablecoinVolumeChart data={stablecoins} />
-        </ChartCard>
-      </div>
+      {/* ── Section 2: Stablecoins ── */}
+      <section className="mb-12">
+        <h2 className="text-lg font-semibold text-white mb-4">Stablecoins</h2>
 
-      {/* DEX + NFT side by side */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <ChartCard title="DEX Activity — daily swaps (Uniswap V2-compatible)">
-          <p className="text-tempo-muted text-xs mb-3">
-            Community-deployed V2 AMMs. Top pair: TIMECOIN/USDC.e.
-            USD volume tracking requires per-pair token mapping (coming soon).
-          </p>
-          <DexActivityChart data={dexDaily} />
-          {topPairs.length > 0 && (
-            <div className="mt-4 space-y-1">
-              {topPairs.map(p => (
-                <div key={p.pair} className="flex justify-between text-xs">
-                  <a href={`/address/${p.pair}`} className="font-mono text-tempo-blue hover:underline">
-                    {p.pair.slice(0, 10)}…{p.pair.slice(-6)}
-                  </a>
-                  <span className="text-tempo-muted">{p.total_swaps.toLocaleString()} swaps</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </ChartCard>
-
-        <ChartCard title="NFT Activity — top ERC-721 collections">
-          <div className="space-y-2">
-            {topNFTs.map(c => (
-              <div key={c.collection} className="flex items-center justify-between text-xs">
-                <a href={`/address/${c.collection}`} className="font-mono text-tempo-blue hover:underline">
-                  {c.collection.slice(0, 10)}…{c.collection.slice(-6)}
-                </a>
-                <div className="text-right">
-                  <span className="text-white">{c.total_transfers.toLocaleString()}</span>
-                  <span className="text-tempo-muted ml-2">{c.days_active}d active</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </ChartCard>
-      </div>
-
-      {/* Data export */}
-      <div className="bg-tempo-card border border-tempo-border rounded-lg p-6">
-        <h2 className="text-sm font-medium text-tempo-muted uppercase tracking-wide mb-4">Export Raw Data</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {([
-            { key: 'account-types', label: 'Account Type Breakdown', desc: 'Secp256k1 / P256 / WebAuthn distribution' },
-            { key: 'batch-calls', label: 'Batch Call Stats', desc: 'Batch transactions per day' },
-            { key: 'fee-sponsorship', label: 'Fee Sponsorship', desc: 'Sponsored transaction breakdown' },
-          ] as const).map(({ key, label, desc }) => (
-            <div key={key} className="flex flex-col gap-2">
-              <p className="text-white text-sm font-medium">{label}</p>
-              <p className="text-tempo-muted text-xs">{desc}</p>
-              <ExportButton queryKey={key} />
-            </div>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <StatCard label="Total Supply" value={fmtUSD(totalSupply)} />
+          <StatCard label="30d Volume" value={fmtUSD(totalVol30d)} />
+          <StatCard label="30d Transfers" value={fmtCount(totalXfers30d)} />
         </div>
-      </div>
+
+        <div className="bg-tempo-card border border-tempo-border rounded-lg p-6 mb-4">
+          <h3 className="text-sm font-medium text-white mb-4">Daily Transfer Volume (30d)</h3>
+          <StablecoinVolumeChart data={stablecoinDaily} />
+        </div>
+
+        <a href="/stablecoins" className="text-tempo-blue hover:underline text-sm">
+          View Stablecoins →
+        </a>
+      </section>
+
+      {/* ── Section 3: Protocol DEX (Enshrined) ── */}
+      <section className="mb-12">
+        <div className="flex items-center gap-3 mb-4">
+          <h2 className="text-lg font-semibold text-white">Protocol DEX</h2>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">Enshrined</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <StatCard label="30d Swaps" value={fmtCount(protocolSwaps30d)} />
+          <StatCard label="30d Volume" value={fmtUSD(protocolVol30d)} />
+          <StatCard label="TVL" value={fmtUSD(protocolTVL)} sub="stablecoins held by precompile" />
+        </div>
+
+        <div className="bg-tempo-card border border-tempo-border rounded-lg p-6 mb-4">
+          <h3 className="text-sm font-medium text-white mb-4">Daily Volume (30d)</h3>
+          <DexVolumeChart data={protocolForChart} color="#8B5CF6" />
+        </div>
+
+        <a href="/dex" className="text-tempo-blue hover:underline text-sm">
+          View DEX →
+        </a>
+      </section>
+
+      {/* ── Section 4: Community DEX ── */}
+      <section className="mb-12">
+        <div className="flex items-center gap-3 mb-4">
+          <h2 className="text-lg font-semibold text-white">Community DEX</h2>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">Uniswap V2</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <StatCard label="30d Volume (whitelisted pools)" value={fmtUSD(communityVol30d)} />
+          <StatCard label="30d Swaps" value={fmtCount(communitySwaps30d)} />
+        </div>
+
+        <div className="bg-tempo-card border border-tempo-border rounded-lg p-6 mb-4">
+          <h3 className="text-sm font-medium text-white mb-4">Daily USD Volume (30d)</h3>
+          <DexVolumeChart data={communityDaily} />
+        </div>
+
+        <a href="/dex" className="text-tempo-blue hover:underline text-sm">
+          View DEX →
+        </a>
+      </section>
     </div>
   )
 }

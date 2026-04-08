@@ -312,6 +312,70 @@ export async function getStablecoinStats(): Promise<StablecoinStat[]> {
   return result
 }
 
+export interface StablecoinSupplyPoint {
+  day: string
+  pathUSD: number
+  usdc_e: number
+}
+
+const PATHUSD_ADDR = '0x20c0000000000000000000000000000000000000'
+const USDC_E_ADDR  = '0x20c000000000000000000000b9537d11c60e8b50'
+
+export async function getStablecoinSupplyHistory(days = 30): Promise<StablecoinSupplyPoint[]> {
+  const key = `analytics:stablecoin_supply:${days}`
+  const cached = await getCached<StablecoinSupplyPoint[]>(key)
+  if (cached) return cached
+
+  // Fetch N+90 days of daily net changes for accurate cumsum bootstrap
+  const fetchDays = days + 90
+
+  const rows = await queryClickHouse<{ day: string; token: string; net_raw: string }>(`
+    SELECT day, token, sum(net_raw) AS net_raw
+    FROM mv_stablecoin_supply_daily
+    WHERE day >= today() - ${fetchDays}
+    GROUP BY day, token
+    ORDER BY day ASC
+  `)
+
+  // Compute running cumulative sum per token
+  const cumsumByToken = new Map<string, number>([
+    [PATHUSD_ADDR, 0],
+    [USDC_E_ADDR,  0],
+  ])
+
+  // Collect all unique days in order
+  const daySet = new Set<string>()
+  for (const r of rows) daySet.add(String(r.day).slice(0, 10))
+  const allDays = Array.from(daySet).sort()
+
+  // Build a lookup: day+token → net_raw
+  const netByDayToken = new Map<string, number>()
+  for (const r of rows) {
+    netByDayToken.set(`${String(r.day).slice(0, 10)}:${r.token}`, Number(r.net_raw))
+  }
+
+  // Walk through all days computing cumsum
+  const allPoints: StablecoinSupplyPoint[] = []
+  for (const day of allDays) {
+    const pathUSDNet = netByDayToken.get(`${day}:${PATHUSD_ADDR}`) ?? 0
+    const usdcENet   = netByDayToken.get(`${day}:${USDC_E_ADDR}`)  ?? 0
+    cumsumByToken.set(PATHUSD_ADDR, cumsumByToken.get(PATHUSD_ADDR)! + pathUSDNet)
+    cumsumByToken.set(USDC_E_ADDR,  cumsumByToken.get(USDC_E_ADDR)!  + usdcENet)
+    // Number(r.net_raw) loses precision above 2^53, but cumulative supply values
+    // for these 6-decimal stablecoins are well within safe integer range.
+    allPoints.push({
+      day,
+      pathUSD: cumsumByToken.get(PATHUSD_ADDR)! / 1e6,
+      usdc_e:  cumsumByToken.get(USDC_E_ADDR)!  / 1e6,
+    })
+  }
+
+  // Return only the last `days` rows
+  const result = allPoints.slice(-days)
+  await setCached(key, result, 900)
+  return result
+}
+
 // ─── DEX ─────────────────────────────────────────────────────────
 export interface DexDailyStat {
   day: string

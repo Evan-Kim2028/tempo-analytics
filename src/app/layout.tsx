@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             tempo<span className="text-tempo-blue">analytics</span>
           </a>
           <a href="/blocks" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">Blocks</a>
-          <a href="/analytics" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">Analytics</a>
+          <a href="/analytics" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">Overview</a>
           <a href="/stablecoins" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">Stablecoins</a>
           <a href="/dex" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">DEX</a>
           <a href="/nfts" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">NFTs</a>

@@ -9,7 +9,12 @@ const fmtUSD = new Intl.NumberFormat('en-US', {
   style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1,
 })
 
-export function DexVolumeChart({ data }: { data: DexDailyVolumeUSD[] }) {
+interface Props {
+  data: DexDailyVolumeUSD[]
+  color?: string
+}
+
+export function DexVolumeChart({ data, color = '#0057FF' }: Props) {
   return (
     <ResponsiveContainer width="100%" height={240}>
       <BarChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
@@ -30,7 +35,7 @@ export function DexVolumeChart({ data }: { data: DexDailyVolumeUSD[] }) {
           labelStyle={{ color: '#fff' }}
           formatter={(v: number) => [fmtUSD.format(v), 'volume']}
         />
-        <Bar dataKey="volume_usd" name="USD Volume" fill="#8B5CF6" radius={[2, 2, 0, 0]} />
+        <Bar dataKey="volume_usd" name="USD Volume" fill={color} radius={[2, 2, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   )
