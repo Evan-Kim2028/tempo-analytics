@@ -34,6 +34,29 @@ test('maps tempo tx share rows into numbers', async () => {
   ])
 })
 
+test('returns cached tempo tx share rows without querying clickhouse', async () => {
+  const cached = [{ day: '2026-04-01', tempo_txs: 50, total_txs: 200, tempo_pct: 25 }]
+  ;(getCached as jest.Mock).mockResolvedValueOnce(cached)
+
+  await expect(getTempoTxShareByDay(7)).resolves.toEqual(cached)
+  expect(queryClickHouse).not.toHaveBeenCalled()
+  expect(setCached).not.toHaveBeenCalled()
+})
+
+test('caches tempo tx share rows on miss with ttl 900', async () => {
+  ;(queryClickHouse as jest.Mock).mockResolvedValueOnce([
+    { day: '2026-04-01', tempo_txs: '50', total_txs: '200', tempo_pct: '25' },
+  ])
+
+  await getTempoTxShareByDay(7)
+
+  expect(setCached).toHaveBeenCalledWith(
+    'tempo-analytics:tx-share:7',
+    [{ day: '2026-04-01', tempo_txs: 50, total_txs: 200, tempo_pct: 25 }],
+    900,
+  )
+})
+
 test('computes feature adoption percentages from raw counts', async () => {
   ;(queryClickHouse as jest.Mock).mockResolvedValueOnce([
     {
@@ -55,6 +78,9 @@ test('computes feature adoption percentages from raw counts', async () => {
       fee_token_set_pct: 25,
     },
   ])
+
+  const sql = String((queryClickHouse as jest.Mock).mock.calls[0][0])
+  expect(sql).toMatch(/call_count\s*>\s*1/)
 })
 
 test('normalizes fee token labels and maps numeric fields', () => {
@@ -145,7 +171,7 @@ test('maps top sponsor numeric fields correctly', async () => {
   ])
 })
 
-test('maps webauthn usage rows into numbers', async () => {
+test('maps webauthn usage rows into numbers and guards zero totals', async () => {
   ;(queryClickHouse as jest.Mock).mockResolvedValueOnce([
     { day: '2026-04-01', webauthn_txs: '293', webauthn_pct_of_tempo: '4.02' },
   ])
@@ -153,5 +179,17 @@ test('maps webauthn usage rows into numbers', async () => {
   await expect(getWebauthnUsageByDay(7)).resolves.toEqual([
     { day: '2026-04-01', webauthn_txs: 293, webauthn_pct_of_tempo: 4.02 },
   ])
+
+  const sql = String((queryClickHouse as jest.Mock).mock.calls[0][0])
+  expect(sql).toMatch(/if\s*\(\s*total_tempo_txs\s*=\s*0\s*,\s*0\s*,\s*round\(webauthn_txs \* 100\.0 \/ total_tempo_txs, 2\)\s*\)/)
 })
 
+test('maps zero-webauthn rows to zero percentage safely', async () => {
+  ;(queryClickHouse as jest.Mock).mockResolvedValueOnce([
+    { day: '2026-04-01', webauthn_txs: '0', webauthn_pct_of_tempo: '0' },
+  ])
+
+  await expect(getWebauthnUsageByDay(7)).resolves.toEqual([
+    { day: '2026-04-01', webauthn_txs: 0, webauthn_pct_of_tempo: 0 },
+  ])
+})

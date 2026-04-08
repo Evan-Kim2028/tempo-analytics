@@ -135,7 +135,7 @@ export async function getTempoFeatureAdoptionByDay(days = 30): Promise<TempoFeat
           toDate(block_timestamp) AS day,
           countIf(type = 118) AS total_txs,
           countIf(type = 118 AND fee_payer IS NOT NULL AND fee_payer != "from") AS sponsored_txs,
-          countIf(type = 118 AND call_count > 0) AS batched_txs,
+          countIf(type = 118 AND call_count > 1) AS batched_txs,
           countIf(type = 118 AND valid_before IS NOT NULL AND valid_after IS NOT NULL) AS time_bounded_txs,
           countIf(type = 118 AND fee_token IS NOT NULL) AS fee_token_set_txs
         FROM tidx_4217.txs
@@ -296,7 +296,7 @@ export async function getWebauthnUsageByDay(days = 30): Promise<WebauthnUsagePoi
       SELECT
         day,
         webauthn_txs,
-        round(webauthn_txs * 100.0 / total_tempo_txs, 2) AS webauthn_pct_of_tempo
+        if(total_tempo_txs = 0, 0, round(webauthn_txs * 100.0 / total_tempo_txs, 2)) AS webauthn_pct_of_tempo
       FROM (
         SELECT
           toDate(block_timestamp) AS day,
