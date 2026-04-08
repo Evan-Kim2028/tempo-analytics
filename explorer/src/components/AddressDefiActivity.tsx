@@ -4,9 +4,13 @@ import type { AddressDefiStats } from '@/lib/defi'
 const fmtCount = (n: number) =>
   new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 
-const fmtTimestamp = (ts: string) => new Date(ts).toLocaleString('en-US', {
-  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
-})
+const fmtTimestamp = (ts: string) => {
+  const d = new Date(ts)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleString('en-US', {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+  })
+}
 
 export function AddressDefiActivity({
   stats,
@@ -74,15 +78,15 @@ export function AddressDefiActivity({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-tempo-border">
-                  <th className="text-left px-6 py-3 text-tempo-muted font-normal">Time</th>
-                  <th className="text-left px-4 py-3 text-tempo-muted font-normal">Token</th>
-                  <th className="text-left px-4 py-3 text-tempo-muted font-normal">Direction</th>
-                  <th className="text-left px-6 py-3 text-tempo-muted font-normal">Counterparty</th>
+                  <th className="text-left px-6 py-3 text-tempo-muted font-medium">Time</th>
+                  <th className="text-left px-4 py-3 text-tempo-muted font-medium">Token</th>
+                  <th className="text-left px-4 py-3 text-tempo-muted font-medium">Direction</th>
+                  <th className="text-left px-6 py-3 text-tempo-muted font-medium">Counterparty</th>
                 </tr>
               </thead>
               <tbody>
                 {stats.recent_transfers.map((t, i) => (
-                  <tr key={`${t.hash}-${i}`} className="border-b border-tempo-border hover:bg-tempo-border/30 transition-colors">
+                  <tr key={`${t.hash}-${i}`} className="border-b border-tempo-border last:border-0 hover:bg-white/5 transition-colors">
                     <td className="px-6 py-3 text-tempo-muted text-xs">
                       {fmtTimestamp(t.block_timestamp)}
                     </td>
