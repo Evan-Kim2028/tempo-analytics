@@ -1,7 +1,7 @@
 jest.mock('@/lib/clickhouse', () => ({ queryClickHouse: jest.fn() }))
 jest.mock('@/lib/cache', () => ({
-  getCached: jest.fn().mockResolvedValue(null),
-  setCached: jest.fn().mockResolvedValue(undefined),
+  getCached: jest.fn(),
+  setCached: jest.fn(),
 }))
 jest.mock('@/lib/tokens', () => ({
   getTokenInfo: jest.fn(),
@@ -17,18 +17,29 @@ const mockQuery = queryClickHouse as jest.Mock
 const mockGetCached = getCached as jest.Mock
 const mockSetCached = setCached as jest.Mock
 const mockGetTokenInfo = getTokenInfo as jest.Mock
+const cacheStore = new Map<string, unknown>()
 
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
 const ZERO_TOPIC = '0x0000000000000000000000000000000000000000000000000000000000000000'
 
-const STARGATE_USDC_TOKEN = BRIDGE_CONTRACTS[0].address
-const STARGATE_USDC_ADAPTER = BRIDGE_CONTRACTS[1].address
-const STARGATE_EURC_TOKEN = BRIDGE_CONTRACTS[2].address
-const STARGATE_EURC_ADAPTER = BRIDGE_CONTRACTS[3].address
-const USDT0_TOKEN = BRIDGE_CONTRACTS[4].address
-const USDT0_ADAPTER = BRIDGE_CONTRACTS[5].address
-const FRAX_TOKEN = BRIDGE_CONTRACTS[7].address
-const FRAX_ADAPTER = BRIDGE_CONTRACTS[8].address
+function getContractAddress(provider: string, role: string, asset: string) {
+  const contract = BRIDGE_CONTRACTS.find(
+    candidate => candidate.provider === provider && candidate.role === role && candidate.asset === asset,
+  )
+  if (!contract) {
+    throw new Error(`Missing bridge contract for ${provider}/${role}/${asset}`)
+  }
+  return contract.address
+}
+
+const STARGATE_USDC_TOKEN = getContractAddress('stargate', 'token', 'USDC.e')
+const STARGATE_USDC_ADAPTER = getContractAddress('stargate', 'adapter', 'USDC.e')
+const STARGATE_EURC_TOKEN = getContractAddress('stargate', 'token', 'EURC.e')
+const STARGATE_EURC_ADAPTER = getContractAddress('stargate', 'adapter', 'EURC.e')
+const USDT0_TOKEN = getContractAddress('usdt0', 'token', 'USDT0')
+const USDT0_ADAPTER = getContractAddress('usdt0', 'adapter', 'USDT0')
+const FRAX_TOKEN = getContractAddress('frax', 'token', 'frxUSD')
+const FRAX_ADAPTER = getContractAddress('frax', 'adapter', 'frxUSD')
 
 function padTopicAddress(address: string) {
   const lower = address.toLowerCase()
@@ -73,8 +84,15 @@ function mockStrictFlowQueries(tokenRows: Array<Record<string, unknown>>, adapte
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
-  mockGetCached.mockResolvedValue(null)
+  mockQuery.mockReset()
+  mockGetCached.mockReset()
+  mockSetCached.mockReset()
+  mockGetTokenInfo.mockReset()
+  cacheStore.clear()
+  mockGetCached.mockImplementation(async (key: string) => (cacheStore.has(key) ? cacheStore.get(key) : null))
+  mockSetCached.mockImplementation(async (key: string, value: unknown) => {
+    cacheStore.set(key, value)
+  })
   mockGetTokenInfo.mockImplementation(async (address: string) => {
     const lower = address.toLowerCase()
     if (lower === STARGATE_USDC_TOKEN) {
@@ -177,6 +195,27 @@ test('mint with matching provider adapter touch is included in provider and asse
   ])
 })
 
+test('same-provider wrong-adapter touch does not validate the token transfer', async () => {
+  const txHash = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  const tokenRows = [
+    makeTokenRow({
+      block_timestamp: '2026-04-08 12:00:00',
+      address: STARGATE_USDC_TOKEN,
+      from: ZERO_TOPIC,
+      to: '0xabcdef1234567890abcdef1234567890abcdef12',
+      amount: 1_500_000n,
+      tx_hash: txHash,
+    }),
+  ]
+  const adapterRows = [makeAdapterTouchRow(txHash, STARGATE_EURC_ADAPTER)]
+
+  mockStrictFlowQueries(tokenRows, adapterRows)
+  expect(await getDailyBridgeProviderFlows(30)).toEqual([])
+
+  mockStrictFlowQueries(tokenRows, adapterRows)
+  expect(await getDailyBridgeProviderAssetFlows(30)).toEqual([])
+})
+
 test('mint to a bridge-owned address with matching adapter touch is excluded from headline output', async () => {
   const txHash = '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
   const tokenRows = [
@@ -276,6 +315,53 @@ test('provider rollup sums multiple asset rows and distinct strict headline tx h
       unique_users: 2,
     },
   ])
+})
+
+test('provider and asset rollup exports share one underlying snapshot refresh on a cold read', async () => {
+  const txHash = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+  const tokenRows = [
+    makeTokenRow({
+      block_timestamp: '2026-04-08 12:00:00',
+      address: STARGATE_USDC_TOKEN,
+      from: ZERO_TOPIC,
+      to: '0xabcdef1234567890abcdef1234567890abcdef12',
+      amount: 1_500_000n,
+      tx_hash: txHash,
+    }),
+  ]
+  const adapterRows = [makeAdapterTouchRow(txHash, STARGATE_USDC_ADAPTER)]
+
+  mockStrictFlowQueries(tokenRows, adapterRows)
+  const providerRows = await getDailyBridgeProviderFlows(30)
+  const assetRows = await getDailyBridgeProviderAssetFlows(30)
+
+  expect(providerRows).toEqual([
+    {
+      day: '2026-04-08',
+      provider: 'stargate',
+      provider_label: 'Stargate',
+      gross_inflow: 1.5,
+      gross_outflow: 0,
+      net_flow: 1.5,
+      tx_count: 1,
+      unique_users: 1,
+    },
+  ])
+  expect(assetRows).toEqual([
+    {
+      day: '2026-04-08',
+      provider: 'stargate',
+      provider_label: 'Stargate',
+      asset: 'USDC.e',
+      token: STARGATE_USDC_TOKEN,
+      gross_inflow: 1.5,
+      gross_outflow: 0,
+      net_flow: 1.5,
+      tx_count: 1,
+      unique_users: 1,
+    },
+  ])
+  expect(mockQuery).toHaveBeenCalledTimes(2)
 })
 
 test('tx_count reflects distinct strict headline tx hashes for the grouping key', async () => {
