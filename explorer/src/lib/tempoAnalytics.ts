@@ -96,7 +96,7 @@ export async function getTempoTxShareByDay(days = 30): Promise<TempoTxSharePoint
           toDate(block_timestamp) AS day,
           countIf(type = 118) AS tempo_txs,
           count() AS total_txs
-        FROM txs
+        FROM tidx_4217.txs
         WHERE block_timestamp >= now() - INTERVAL ${days} DAY
         GROUP BY day
       )
@@ -138,7 +138,7 @@ export async function getTempoFeatureAdoptionByDay(days = 30): Promise<TempoFeat
           countIf(type = 118 AND call_count > 0) AS batched_txs,
           countIf(type = 118 AND valid_before IS NOT NULL AND valid_after IS NOT NULL) AS time_bounded_txs,
           countIf(type = 118 AND fee_token IS NOT NULL) AS fee_token_set_txs
-        FROM txs
+        FROM tidx_4217.txs
         WHERE block_timestamp >= now() - INTERVAL ${days} DAY
         GROUP BY day
       )
@@ -177,7 +177,7 @@ export async function getFeeTokenMixByDay(days = 30): Promise<FeeTokenMixPoint[]
           toDate(block_timestamp) AS day,
           concat('0x', lower(hex(fee_token))) AS fee_token,
           count() AS txs
-        FROM txs
+        FROM tidx_4217.txs
         WHERE block_timestamp >= now() - INTERVAL ${days} DAY
           AND type = 118
           AND fee_token IS NOT NULL
@@ -213,7 +213,7 @@ export async function getSponsorConcentrationByDay(
           toDate(block_timestamp) AS day,
           concat('0x', lower(hex(fee_payer))) AS sponsor,
           count() AS sponsor_txs
-        FROM txs
+        FROM tidx_4217.txs
         WHERE block_timestamp >= now() - INTERVAL ${days} DAY
           AND type = 118
           AND fee_payer IS NOT NULL
@@ -266,7 +266,7 @@ export async function getTopSponsors(limit = 10): Promise<TopSponsorRow[]> {
         uniqExact("from") AS unique_users_sponsored,
         min(block_timestamp) AS first_seen,
         max(block_timestamp) AS last_seen
-      FROM txs
+      FROM tidx_4217.txs
       WHERE type = 118
         AND fee_payer IS NOT NULL
         AND fee_payer != "from"
@@ -302,7 +302,7 @@ export async function getWebauthnUsageByDay(days = 30): Promise<WebauthnUsagePoi
           toDate(block_timestamp) AS day,
           countIf(type = 118) AS total_tempo_txs,
           countIf(type = 118 AND signature_type = 2) AS webauthn_txs
-        FROM txs
+        FROM tidx_4217.txs
         WHERE block_timestamp >= now() - INTERVAL ${days} DAY
         GROUP BY day
       )
@@ -316,4 +316,3 @@ export async function getWebauthnUsageByDay(days = 30): Promise<WebauthnUsagePoi
     }))
   })
 }
-
