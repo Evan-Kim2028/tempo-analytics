@@ -60,6 +60,10 @@ function EmptyRow({ colSpan }: { colSpan: number }) {
 }
 
 export function BridgeFlowTable({ providerFlows, providerAssetFlows }: BridgeFlowTableProps) {
+  const sortedProviderFlows = [...providerFlows].sort(
+    (a, b) => b.day.localeCompare(a.day) || b.net_flow - a.net_flow,
+  )
+
   return (
     <div className="space-y-8">
       <TableShell title="Provider Daily Rows" subtitle="All provider rollups for the last 30 days.">
@@ -76,7 +80,7 @@ export function BridgeFlowTable({ providerFlows, providerAssetFlows }: BridgeFlo
             </tr>
           </thead>
           <tbody>
-            {providerFlows.map(row => (
+            {sortedProviderFlows.map(row => (
               <tr key={`${row.day}:${row.provider}`} className="border-b border-tempo-border hover:bg-tempo-border/30 transition-colors">
                 <td className="px-6 py-4 text-tempo-muted font-mono text-xs">{row.day}</td>
                 <td className="px-4 py-4">
