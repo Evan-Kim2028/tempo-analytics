@@ -11,7 +11,9 @@ test('registry exposes only verified v1 providers', () => {
 
 test('each verified provider has at least one Tempo contract mapping', () => {
   for (const provider of BRIDGE_PROVIDERS) {
-    expect(getBridgeContractsForProvider(provider.id).length).toBeGreaterThan(0)
+    expect(getBridgeContractsForProvider(provider.id)).toEqual(
+      BRIDGE_CONTRACTS.filter(contract => contract.provider === provider.id),
+    )
   }
 })
 
@@ -39,6 +41,9 @@ test('registry exposes the verified bridge contract set', () => {
 
 test('registry exposes bridge token addresses for rollups', () => {
   const addresses = getBridgeTokenAddresses()
-  expect(addresses.length).toBeGreaterThan(0)
-  expect(addresses.every(a => a.startsWith('0x'))).toBe(true)
+  expect(addresses).toEqual(
+    BRIDGE_CONTRACTS
+      .filter(contract => contract.role === 'token')
+      .map(contract => contract.address),
+  )
 })
