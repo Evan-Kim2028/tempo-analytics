@@ -19,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <a href="/analytics" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">Overview</a>
           <a href="/stablecoins" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">Stablecoins</a>
           <a href="/dex" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">DEX</a>
+          <a href="/bridges" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">Bridges</a>
           <a href="/nfts" className="text-tempo-muted hover:text-white text-sm transition-colors shrink-0">NFTs</a>
           <SearchBar />
         </nav>
