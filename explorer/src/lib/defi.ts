@@ -133,10 +133,10 @@ export async function getAddressDefiStats(address: string): Promise<AddressDefiS
     // Last 20 ERC-20 transfers
     queryClickHouse<{
       block_timestamp: string; address: string; topic1: string; topic2: string
-      data: string; hash: string
+      data: string; tx_hash: string
     }>(`
       SELECT block_timestamp, address, topic1, topic2,
-             data, hash
+             data, tx_hash
       FROM logs
       WHERE selector = '${TRANSFER}'
         AND (topic1 = '${padded}' OR topic2 = '${padded}')
@@ -192,7 +192,7 @@ export async function getAddressDefiStats(address: string): Promise<AddressDefiS
           ? '0x' + r.topic1.slice(-40)
           : '0x' + r.topic2.slice(-40),
         amount_raw: r.data,
-        hash: r.hash,
+        hash: r.tx_hash,
       }
     })
   )
