@@ -9,8 +9,9 @@ export default function DexLoading() {
 
       {/* Section 1: Fee AMM */}
       <section className="mb-12">
-        <div className="mb-3">
-          <div className="h-7 w-48 bg-tempo-border rounded animate-pulse" />
+        <div className="flex items-center gap-3 mb-3">
+          <div className="h-5 w-32 bg-tempo-border rounded animate-pulse" />
+          <div className="h-5 w-16 bg-tempo-border rounded-full animate-pulse" />
         </div>
         <div className="h-5 w-full max-w-2xl bg-tempo-border/50 rounded animate-pulse mb-6" />
 
@@ -27,8 +28,9 @@ export default function DexLoading() {
 
       {/* Section 2: Protocol DEX */}
       <section className="mb-12">
-        <div className="mb-3">
-          <div className="h-7 w-48 bg-tempo-border rounded animate-pulse" />
+        <div className="flex items-center gap-3 mb-3">
+          <div className="h-5 w-32 bg-tempo-border rounded animate-pulse" />
+          <div className="h-5 w-16 bg-tempo-border rounded-full animate-pulse" />
         </div>
         <div className="h-5 w-full max-w-2xl bg-tempo-border/50 rounded animate-pulse mb-6" />
 
@@ -45,8 +47,9 @@ export default function DexLoading() {
 
       {/* Section 3: Community DEX */}
       <section>
-        <div className="mb-3">
-          <div className="h-7 w-48 bg-tempo-border rounded animate-pulse" />
+        <div className="flex items-center gap-3 mb-3">
+          <div className="h-5 w-32 bg-tempo-border rounded animate-pulse" />
+          <div className="h-5 w-16 bg-tempo-border rounded-full animate-pulse" />
         </div>
         <div className="h-5 w-full max-w-2xl bg-tempo-border/50 rounded animate-pulse mb-6" />
 
