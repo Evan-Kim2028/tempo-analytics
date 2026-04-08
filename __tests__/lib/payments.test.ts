@@ -10,6 +10,9 @@ import {
   classifyMemoFamily,
   decodeMemoHex,
   PAYMENT_METHODS,
+  getPaymentsDaily,
+  getPaymentsPageData,
+  getPaymentsSummary,
   getRecentPayments,
 } from '@/lib/payments'
 
@@ -256,4 +259,246 @@ test('reads recent payments from cache before querying clickhouse', async () => 
     },
   ])
   expect(mockQuery).not.toHaveBeenCalled()
+})
+
+test('filters failed payment calls by tx input selector prefix', async () => {
+  mockQuery
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([])
+
+  await getRecentPayments(10, 14)
+
+  expect(String(mockQuery.mock.calls[1]?.[0])).toContain("startsWith(lower(txs.input), '0x95777d59')")
+  expect(String(mockQuery.mock.calls[1]?.[0])).not.toContain('txs.selector')
+})
+
+test('getPaymentsDaily(30) maps daily rollups plus exact actor counts', async () => {
+  mockQuery
+    .mockResolvedValueOnce([
+      {
+        day: '2026-04-07',
+        successful_payments: '2',
+        failed_attempts: '1',
+        total_amount_raw: '3000000',
+        readable_memos: '1',
+        opaque_memos: '1',
+        empty_memos: '1',
+      },
+      {
+        day: '2026-04-08',
+        successful_payments: '1',
+        failed_attempts: '0',
+        total_amount_raw: '1250000',
+        readable_memos: '1',
+        opaque_memos: '0',
+        empty_memos: '0',
+      },
+    ])
+    .mockResolvedValueOnce([
+      {
+        day: '2026-04-07',
+        unique_senders: '3',
+        unique_recipients: '2',
+      },
+      {
+        day: '2026-04-08',
+        unique_senders: '1',
+        unique_recipients: '1',
+      },
+    ])
+
+  await expect(getPaymentsDaily(30)).resolves.toEqual([
+    {
+      day: '2026-04-07',
+      successful_payments: 2,
+      failed_attempts: 1,
+      total_amount: 3,
+      unique_senders: 3,
+      unique_recipients: 2,
+      readable_memos: 1,
+      opaque_memos: 1,
+      empty_memos: 1,
+    },
+    {
+      day: '2026-04-08',
+      successful_payments: 1,
+      failed_attempts: 0,
+      total_amount: 1.25,
+      unique_senders: 1,
+      unique_recipients: 1,
+      readable_memos: 1,
+      opaque_memos: 0,
+      empty_memos: 0,
+    },
+  ])
+})
+
+test('reuses the tx input selector prefix for exact actor counts', async () => {
+  mockQuery
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([])
+
+  await getPaymentsDaily(14)
+
+  expect(String(mockQuery.mock.calls[1]?.[0])).toContain("startsWith(lower(txs.input), '0x95777d59')")
+  expect(String(mockQuery.mock.calls[1]?.[0])).not.toContain('txs.selector')
+})
+
+test('getPaymentsSummary(30) computes payment totals and exact actor counts', async () => {
+  mockQuery
+    .mockResolvedValueOnce([
+      {
+        successful_payments: '5',
+        failed_attempts: '2',
+        total_amount_raw: '4500000',
+      },
+    ])
+    .mockResolvedValueOnce([
+      {
+        unique_senders: '4',
+        unique_recipients: '3',
+      },
+    ])
+
+  await expect(getPaymentsSummary(30)).resolves.toEqual({
+    successful_payments: 5,
+    failed_attempts: 2,
+    success_rate: 71.43,
+    total_amount: 4.5,
+    unique_senders: 4,
+    unique_recipients: 3,
+  })
+})
+
+test('getPaymentsPageData() assembles summary, daily, recent, and counterparty leaderboards', async () => {
+  mockQuery
+    .mockResolvedValueOnce([
+      {
+        successful_payments: '4',
+        failed_attempts: '1',
+        total_amount_raw: '3750000',
+      },
+    ])
+    .mockResolvedValueOnce([
+      {
+        unique_senders: '3',
+        unique_recipients: '2',
+      },
+    ])
+    .mockResolvedValueOnce([
+      {
+        day: '2026-04-08',
+        successful_payments: '4',
+        failed_attempts: '1',
+        total_amount_raw: '3750000',
+        readable_memos: '2',
+        opaque_memos: '2',
+        empty_memos: '1',
+      },
+    ])
+    .mockResolvedValueOnce([
+      {
+        day: '2026-04-08',
+        unique_senders: '3',
+        unique_recipients: '2',
+      },
+    ])
+    .mockResolvedValueOnce([
+      {
+        block_timestamp: '2026-04-08 12:00:00',
+        tx_hash: '0xsuccess',
+        sender: '0x0000000000000000000000001111111111111111111111111111111111111111',
+        recipient: '0x0000000000000000000000002222222222222222222222222222222222222222',
+        token: '0x20c0000000000000000000000000000000000000',
+        amount_raw: '2500000',
+        memo_hex: '0x534f432d30307a66393162640000000000000000000000000000000000000000',
+      },
+    ])
+    .mockResolvedValueOnce([
+      {
+        block_timestamp: '2026-04-08 12:05:00',
+        tx_hash: '0xfailed',
+        sender: '0x3333333333333333333333333333333333333333',
+        recipient: '0x4444444444444444444444444444444444444444',
+        token: '0x20c0000000000000000000000000000000000000',
+        amount_raw: '990000',
+        memo_hex: '0xff00aa0000000000000000000000000000000000000000000000000000000000',
+      },
+    ])
+    .mockResolvedValueOnce([
+      {
+        address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        payment_count: '3',
+        total_amount_raw: '3200000',
+      },
+    ])
+    .mockResolvedValueOnce([
+      {
+        address: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        payment_count: '2',
+        total_amount_raw: '1800000',
+      },
+    ])
+    .mockResolvedValueOnce([
+      {
+        address: '0xcccccccccccccccccccccccccccccccccccccccc',
+        payment_count: '4',
+        total_amount_raw: '3750000',
+      },
+    ])
+
+  await expect(getPaymentsPageData()).resolves.toEqual({
+    summary: {
+      successful_payments: 4,
+      failed_attempts: 1,
+      success_rate: 80,
+      total_amount: 3.75,
+      unique_senders: 3,
+      unique_recipients: 2,
+    },
+    daily: [
+      {
+        day: '2026-04-08',
+        successful_payments: 4,
+        failed_attempts: 1,
+        total_amount: 3.75,
+        unique_senders: 3,
+        unique_recipients: 2,
+        readable_memos: 2,
+        opaque_memos: 2,
+        empty_memos: 1,
+      },
+    ],
+    recent: [
+      expect.objectContaining({
+        tx_hash: '0xfailed',
+        status: 'failed',
+      }),
+      expect.objectContaining({
+        tx_hash: '0xsuccess',
+        status: 'success',
+      }),
+    ],
+    topRecipientsByAmount: [
+      {
+        address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        payment_count: 3,
+        total_amount: 3.2,
+      },
+    ],
+    topRecipientsByCount: [
+      {
+        address: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        payment_count: 2,
+        total_amount: 1.8,
+      },
+    ],
+    topSenders: [
+      {
+        address: '0xcccccccccccccccccccccccccccccccccccccccc',
+        payment_count: 4,
+        total_amount: 3.75,
+      },
+    ],
+  })
 })
