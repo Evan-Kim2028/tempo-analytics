@@ -1,69 +1,22 @@
-# tempo-analytics — Development Conventions
+# tempo-analytics — Dev Notes
 
-## Chart data contract
+## Chart data
 
-Every recharts chart must be fed by a **server-side data function** that returns
-pre-shaped data. Never compute pivots or data transforms inside a `'use client'`
-component — pass ready-to-render data from the server.
+Every recharts chart must receive **pre-shaped data from a server function** in `src/lib/`. Never pivot or transform data inside a `'use client'` component — recharts silently renders invisible bars/lines when values are computed client-side.
 
-### Why
+**Static dataKeys** — server returns `Array<{ day: string; my_metric: number }>`, component uses `<Bar dataKey="my_metric" />`.
 
-Recharts needs a stable, serialized data array to render visible bars and lines.
-Client-side transforms can silently produce invisible charts (bars at height 0,
-series that don't appear) with no error in the console.
+**Dynamic/stacked dataKeys** — server returns `{ days: Array<Record<string, string | number>>, series: Array<{ id, label, total }> }`, component maps over `series` to render `<Bar key={s.id} dataKey={s.id} />`.
 
-### Pattern (static dataKeys)
+## Contract tests
 
-```ts
-// lib/analytics.ts
-export interface MyChartPoint { day: string; my_metric: number }
-export async function getMyChartData(days = 30): Promise<MyChartPoint[]> { ... }
-```
+`__tests__/lib/chart-data-contracts.test.ts` — one test per chart data function, using helpers from `__tests__/helpers/chart-contract.ts`:
 
-```tsx
-// components/charts/MyChart.tsx
-'use client'
-export function MyChart({ data }: { data: MyChartPoint[] }) {
-  return <BarChart data={data}><Bar dataKey="my_metric" /></BarChart>
-}
-```
+- `expectRechartsRows(rows, ['field1', 'field2'])` — static dataKeys
+- `expectPivotContract(data.days, data.series.map(s => ({ key: s.id })))` — dynamic dataKeys
 
-### Pattern (dynamic / stacked dataKeys)
+Add a contract test for every new chart data function.
 
-```ts
-// lib/analytics.ts
-export interface MyPivotData {
-  days:   Array<Record<string, string | number>>  // { day, seriesKeyA: number, ... }
-  series: Array<{ id: string; label: string; total: number }>
-}
-export async function getMyPivotData(days = 30): Promise<MyPivotData> { ... }
-```
+## CI
 
-```tsx
-// components/charts/MyChart.tsx — receives pre-pivoted data, no transforms
-'use client'
-export function MyChart({ data }: { data: MyPivotData }) {
-  return (
-    <BarChart data={data.days}>
-      {data.series.map(s => <Bar key={s.id} dataKey={s.id} />)}
-    </BarChart>
-  )
-}
-```
-
-### Adding a new chart — checklist
-
-1. Create the server-side data function in the relevant `src/lib/` file.
-2. Add a contract test in `__tests__/lib/chart-data-contracts.test.ts`:
-   - Static dataKeys → `expectRechartsRows(rows, ['my_metric', ...])`
-   - Dynamic dataKeys → `expectPivotContract(data.days, data.series.map(s => ({ key: s.id })))`
-3. Import helpers from `__tests__/helpers/chart-contract.ts`.
-
-The contract tests enforce:
-- `day` fields are present as strings (≥10 chars)
-- All recharts `dataKey` values are finite numbers (not NaN, not undefined)
-- Pivot charts: every series key appears in at least one days row
-
-## CI verification
-
-Always run `npm test` and `npm run build` locally before committing.
+Run `npm test` and `npm run build` before committing.
