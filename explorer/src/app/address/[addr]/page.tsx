@@ -3,13 +3,15 @@ import { getCached, setCached } from '@/lib/cache'
 import { queryTidx } from '@/lib/tidx'
 import { AddressTxList } from '@/components/AddressTxList'
 import { StatCard } from '@/components/StatCard'
+import { getAddressDefiStats, type AddressDefiStats } from '@/lib/defi'
+import { AddressDefiActivity } from '@/components/AddressDefiActivity'
 
 export const revalidate = 60
 
 async function getAddressData(addr: string) {
   if (!/^0x[0-9a-fA-F]{40}$/i.test(addr)) return null
   const key = `address:${addr.toLowerCase()}`
-  const cached = await getCached<{ txs: unknown[]; stats: unknown }>(key)
+  const cached = await getCached<{ txs: unknown[]; stats: unknown; defi: unknown }>(key)
   if (cached) return cached
 
   const lowerAddr = addr.toLowerCase()
@@ -37,12 +39,15 @@ async function getAddressData(addr: string) {
     `),
   ])
 
+  const defiStats = await getAddressDefiStats(lowerAddr)
+
   const data = {
     txs: txResult.rows,
     stats: {
       ...statsResult.rows[0],
       sponsored_others: sponsoredResult.rows[0]?.count ?? 0,
     },
+    defi: defiStats,
   }
   await setCached(key, data, 60)
   return data
@@ -68,6 +73,10 @@ export default async function AddressPage({ params }: { params: Promise<{ addr: 
 
       <h2 className="text-lg font-medium text-white mb-4">Transactions</h2>
       <AddressTxList txs={data.txs as Parameters<typeof AddressTxList>[0]['txs']} address={addr} />
+      <AddressDefiActivity
+        stats={data.defi as AddressDefiStats}
+        address={addr}
+      />
     </div>
   )
 }
