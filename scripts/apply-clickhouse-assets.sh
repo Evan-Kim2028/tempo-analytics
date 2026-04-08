@@ -2,7 +2,12 @@
 # Apply repo-owned ClickHouse assets against an external ClickHouse service.
 # Definitions are safe to re-run.
 # Historical backfills are skipped by default to avoid double-counting SummingMergeTree data.
-# Set CLICKHOUSE_RUN_BACKFILLS=1 to run the backfill SQL files explicitly.
+# Set CLICKHOUSE_RUN_BACKFILLS=N to run N backfill SQL files concurrently (e.g. CLICKHOUSE_RUN_BACKFILLS=4).
+
+# Views are applied in arbitrary filesystem order (alphabetical by path).
+# This is intentional — all views read directly from base tables (txs, logs)
+# and no view depends on another. If a cross-view dependency is introduced
+# in the future, this script must be updated with explicit ordering.
 
 set -euo pipefail
 
@@ -39,16 +44,17 @@ run_sql() {
     >/dev/null
 }
 
-run_sql "${SCRIPT_DIR}/../sql/clickhouse/views/core.sql"
-run_sql "${SCRIPT_DIR}/../sql/clickhouse/views/erc20-and-dex.sql"
-run_sql "${SCRIPT_DIR}/../sql/clickhouse/views/protocol-dex.sql"
+find "$SCRIPT_DIR/../sql/clickhouse/views" -name "*.sql" | sort | while read -r f; do
+  run_sql "$f"
+done
 
-if [ "${CLICKHOUSE_RUN_BACKFILLS}" = "1" ]; then
-  echo "CLICKHOUSE_RUN_BACKFILLS=1; applying historical backfills."
-  run_sql "${SCRIPT_DIR}/../sql/clickhouse/backfills/core.sql"
-  run_sql "${SCRIPT_DIR}/../sql/clickhouse/backfills/erc20-and-dex.sql"
-  run_sql "${SCRIPT_DIR}/../sql/clickhouse/backfills/protocol-dex.sql"
+if [ -n "$CLICKHOUSE_RUN_BACKFILLS" ] && [ "$CLICKHOUSE_RUN_BACKFILLS" -gt 0 ]; then
+  echo "CLICKHOUSE_RUN_BACKFILLS=$CLICKHOUSE_RUN_BACKFILLS; applying historical backfills in parallel."
+  export CLICKHOUSE_BASE_URL CLICKHOUSE_DB DEFAULT_CLICKHOUSE_DB
+  export -f run_sql rewrite_sql_for_db
+  find "$SCRIPT_DIR/../sql/clickhouse/backfills" -name "*.sql" | sort | \
+    xargs -P "$CLICKHOUSE_RUN_BACKFILLS" -I{} bash -c 'run_sql "$@"' _ {}
 else
   echo "Skipping historical backfills by default."
-  echo "Set CLICKHOUSE_RUN_BACKFILLS=1 to run repo-owned backfill SQL explicitly."
+  echo "Set CLICKHOUSE_RUN_BACKFILLS=N to run N backfill SQL files concurrently (e.g. CLICKHOUSE_RUN_BACKFILLS=4)."
 fi
