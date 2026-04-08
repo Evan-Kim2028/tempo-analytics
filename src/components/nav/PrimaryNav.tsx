@@ -2,6 +2,7 @@ const primaryTabs = [
   { href: '/analytics', label: 'Analytics' },
   { href: '/stablecoins', label: 'Stablecoins' },
   { href: '/dex', label: 'DEX' },
+  { href: '/bridges', label: 'Bridges' },
   { href: '/nfts', label: 'NFTs' },
 ]
 
