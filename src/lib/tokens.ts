@@ -54,7 +54,10 @@ const ERC20_ABI = [
   { name: 'decimals', type: 'function', inputs: [], outputs: [{ type: 'uint8' }],  stateMutability: 'view' },
 ] as const
 
-export async function getTokenInfo(address: string): Promise<TokenInfo | null> {
+export async function getTokenInfo(
+  address: string,
+  { skipRPC = false }: { skipRPC?: boolean } = {},
+): Promise<TokenInfo | null> {
   const lower = address.toLowerCase()
 
   // 1. Instant local lookup (genesis/system tokens)
@@ -70,7 +73,9 @@ export async function getTokenInfo(address: string): Promise<TokenInfo | null> {
   const cached = await getCached<TokenInfo>(cacheKey)
   if (cached) return cached
 
-  // 4. RPC fallback for unknown contracts
+  // 4. RPC fallback for unknown contracts — skipped when caller doesn't need metadata
+  //    for non-whitelisted tokens (e.g., pool explorer shows address anyway)
+  if (skipRPC) return null
   try {
     const [symbol, name, decimals] = await Promise.all([
       publicClient.readContract({ address: lower as `0x${string}`, abi: ERC20_ABI, functionName: 'symbol' }),

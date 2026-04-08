@@ -679,10 +679,10 @@ export async function getFeeTokenAllDailyStats(days = 30): Promise<FeeTokenAllDa
     tokenTotals.set(r.fee_token, (tokenTotals.get(r.fee_token) ?? 0) + Number(r.txs))
   }
 
-  // Resolve symbols; fall back to shortened address
+  // Resolve symbols; skip RPC for unknown tokens (fee tokens are typically whitelisted)
   const tokenEntries = await Promise.all(
     [...tokenTotals.entries()].map(async ([address, total]) => {
-      const info = await getTokenInfo(address)
+      const info = await getTokenInfo(address, { skipRPC: true })
       return { address, symbol: info?.symbol ?? `${address.slice(0, 6)}…${address.slice(-4)}`, total }
     })
   )
@@ -771,10 +771,10 @@ export async function getProtocolDexTokenDailyStats(days = 30): Promise<Protocol
   const topTokenAddrs = new Set(sorted.slice(0, TOP_PROTOCOL_DEX_TOKENS).map(([a]) => a))
   const hasOthers = sorted.length > TOP_PROTOCOL_DEX_TOKENS
 
-  // Resolve symbols for top tokens
+  // Resolve symbols for top tokens; skip RPC — unknown tokens show as addresses
   const tokenEntries = await Promise.all(
     sorted.slice(0, TOP_PROTOCOL_DEX_TOKENS).map(async ([address, rawTotal]) => {
-      const info = await getTokenInfo(address)
+      const info = await getTokenInfo(address, { skipRPC: true })
       return {
         address,
         symbol: info?.symbol ?? `${address.slice(0, 6)}…${address.slice(-4)}`,
@@ -862,7 +862,8 @@ export async function getProtocolDexPools(days = 30): Promise<ProtocolDexPool[]>
   ]))
 
   const result: ProtocolDexPool[] = await Promise.all(rows.map(async r => {
-    const info = await getTokenInfo(r.token)
+    // skipRPC: pool explorer shows address for unknown tokens — no need for on-chain lookup
+    const info = await getTokenInfo(r.token, { skipRPC: true })
     const whitelisted = info !== null
     const swaps_30d = Number(r.swaps)
     const volume_usd = whitelisted ? Number(r.volume_raw) / 1e6 : 0
