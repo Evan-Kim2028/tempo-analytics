@@ -7,6 +7,7 @@ import {
   getTopSponsors,
   getWebauthnUsageByDay,
 } from '@/lib/tempoAnalytics'
+import { ExportButton } from '@/components/ExportButton'
 
 export const revalidate = 900
 
@@ -37,9 +38,14 @@ export default async function AnalyticsPage() {
               Tempo transaction adoption, fee behavior, sponsors, and passkey activity
             </p>
           </div>
-          <span className="inline-flex items-center rounded-full border border-tempo-border bg-tempo-card px-3 py-1 text-xs text-tempo-muted">
-            Updates every 15 min · Mainnet data
-          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <ExportButton queryKey="mainnet-launch" label="Export Growth" />
+            <ExportButton queryKey="fee-sponsorship" label="Export Sponsorship" />
+            <ExportButton queryKey="account-types" label="Export Sig Types" />
+            <span className="inline-flex items-center rounded-full border border-tempo-border bg-tempo-card px-3 py-1 text-xs text-tempo-muted">
+              Updates every 15 min · Mainnet data
+            </span>
+          </div>
         </div>
       </header>
 

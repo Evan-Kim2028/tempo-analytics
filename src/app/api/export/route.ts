@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Mppx, tempo } from 'mppx/server'
 import { server as solana } from 'mppx-solana'
 import { queryTidx } from '@/lib/tidx'
+import { queryClickHouse } from '@/lib/clickhouse'
 
 // Protocol-level constants — these are well-known public contract addresses
 const TEMPO_USDC_E = '0x20C000000000000000000000b9537d11c60E8b50'
@@ -12,7 +13,8 @@ const TEMPO_RECIPIENT = process.env.TEMPO_RECIPIENT_ADDRESS as `0x${string}` | u
 const EXPORT_PRICE = '0.10'          // human-readable for tempo.charge (parseUnits internally)
 const EXPORT_PRICE_SOL = '100000'    // base units for mppx-solana (6 decimals → $0.10)
 
-const EXPORT_QUERIES: Record<string, string> = {
+// Queries that run against TIDX (PostgreSQL)
+const TIDX_QUERIES: Record<string, string> = {
   'account-types': `
     SELECT signature_type, COUNT(*) as count,
            ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) as pct
@@ -59,22 +61,28 @@ const EXPORT_QUERIES: Record<string, string> = {
     ORDER BY num DESC
     LIMIT 1000
   `,
+}
+
+// Queries that run against ClickHouse (mv_* materialized views blocked by TIDX allowlist)
+const CLICKHOUSE_QUERIES: Record<string, string> = {
   'stablecoin-daily': `
-    SELECT day, token, symbol, volume_usd, transfers
+    SELECT day, token, volume_u6, transfers
     FROM mv_stablecoin_daily
-    ORDER BY day DESC, volume_usd DESC
+    ORDER BY day DESC, volume_u6 DESC
   `,
   'dex-daily': `
-    SELECT day, volume_usd, swap_count
+    SELECT day, pair, swap_count
     FROM mv_dex_daily
-    ORDER BY day DESC
+    ORDER BY day DESC, swap_count DESC
   `,
   'nft-activity': `
-    SELECT day, transfers, active_collections
+    SELECT day, collection, transfers
     FROM mv_nft_daily
-    ORDER BY day DESC
+    ORDER BY day DESC, transfers DESC
   `,
 }
+
+const EXPORT_QUERIES: Record<string, string> = { ...TIDX_QUERIES, ...CLICKHOUSE_QUERIES }
 
 function rowsToCsv(result: { columns?: string[]; rows: Record<string, string | number | null>[] }): string {
   const columns = result.columns ?? Object.keys(result.rows[0] ?? {})
@@ -119,8 +127,14 @@ export async function POST(req: NextRequest) {
 
   if (result.status === 402) return result.challenge
 
-  const data = await queryTidx(EXPORT_QUERIES[queryKey])
-  const csv = rowsToCsv(data)
+  let rows: Record<string, string | number | null>[]
+  if (queryKey in CLICKHOUSE_QUERIES) {
+    rows = await queryClickHouse(CLICKHOUSE_QUERIES[queryKey])
+  } else {
+    const result = await queryTidx(TIDX_QUERIES[queryKey])
+    rows = result.rows
+  }
+  const csv = rowsToCsv({ rows })
 
   return result.withReceipt(
     new Response(csv, {

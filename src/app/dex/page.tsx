@@ -14,6 +14,7 @@ import { getProtocolDexTVL, getCommunityDexTVL } from '@/lib/defi'
 import { StatCard } from '@/components/StatCard'
 import { ProtocolDexPoolExplorer } from '@/components/ProtocolDexPoolExplorer'
 import { PeriodToggle } from '@/components/PeriodToggle'
+import { ExportButton } from '@/components/ExportButton'
 import { Suspense } from 'react'
 
 export const revalidate = 900
@@ -86,9 +87,12 @@ export default async function DexPage({
             Tempo has three exchange mechanisms: Fee AMM, Protocol DEX, and Community DEX — each serving a different purpose.
           </p>
         </div>
-        <Suspense>
-          <PeriodToggle currentDays={days} />
-        </Suspense>
+        <div className="flex items-center gap-2">
+          <ExportButton queryKey="dex-daily" label="Export CSV" />
+          <Suspense>
+            <PeriodToggle currentDays={days} />
+          </Suspense>
+        </div>
       </div>
 
       {/* ── Section 1: Fee AMM ── */}

@@ -6,6 +6,7 @@ import {
 } from '@/lib/analytics'
 import { getTokenInfo } from '@/lib/tokens'
 import { StatCard } from '@/components/StatCard'
+import { ExportButton } from '@/components/ExportButton'
 
 export const revalidate = 900
 
@@ -32,11 +33,14 @@ export default async function NFTsPage() {
 
   return (
     <main className="max-w-7xl mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-white mb-1">NFTs</h1>
-        <p className="text-tempo-muted text-sm">
-          ERC-721 transfer activity on Tempo Mainnet.
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-white mb-1">NFTs</h1>
+          <p className="text-tempo-muted text-sm">
+            ERC-721 transfer activity on Tempo Mainnet.
+          </p>
+        </div>
+        <ExportButton queryKey="nft-activity" label="Export CSV" />
       </div>
 
       {/* Summary cards */}
