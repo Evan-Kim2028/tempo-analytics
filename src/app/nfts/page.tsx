@@ -5,6 +5,7 @@ import {
   getTopNFTMinters,
 } from '@/lib/analytics'
 import { getTokenInfo } from '@/lib/tokens'
+import { StatCard } from '@/components/StatCard'
 
 export const revalidate = 900
 
@@ -40,19 +41,13 @@ export default async function NFTsPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
-          <p className="text-tempo-muted text-xs mb-1">30d Transfers</p>
-          <p className="text-2xl font-semibold text-white">{fmtCount(totalTransfers30d)}</p>
-        </div>
-        <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
-          <p className="text-tempo-muted text-xs mb-1">Active Collections (peak 30d)</p>
-          <p className="text-2xl font-semibold text-white">{fmtCount(uniqueCollections30d)}</p>
-        </div>
-        <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
-          <p className="text-tempo-muted text-xs mb-1">Top 10 Minters</p>
-          <p className="text-2xl font-semibold text-white">{(concentration.top10_share_pct ?? 0).toFixed(1)}%</p>
-          <p className="text-tempo-muted text-xs mt-1">of all-time mints</p>
-        </div>
+        <StatCard label="30d Transfers" value={fmtCount(totalTransfers30d)} />
+        <StatCard label="Active Collections (peak 30d)" value={fmtCount(uniqueCollections30d)} />
+        <StatCard
+          label="Top 10 Minters"
+          value={`${(concentration.top10_share_pct ?? 0).toFixed(1)}%`}
+          sub="of all-time mints"
+        />
       </div>
 
       {/* Top collections table */}
