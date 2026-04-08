@@ -1,6 +1,3 @@
-jest.mock('@/lib/clickhouse', () => ({ queryClickHouse: jest.fn() }))
-jest.mock('@/lib/cache', () => ({ getCached: jest.fn(), setCached: jest.fn() }))
-
 import {
   classifyMemoFamily,
   decodeMemoHex,

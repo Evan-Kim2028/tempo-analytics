@@ -1,7 +1,3 @@
-import { getCached, setCached } from '@/lib/cache'
-import { queryClickHouse } from '@/lib/clickhouse'
-
-const CACHE_TTL_SECONDS = 900
 const ZERO_MEMO = '0x' + '00'.repeat(32)
 
 export type PaymentStatus = 'success' | 'failed'
@@ -57,15 +53,5 @@ export function classifyMemoFamily(memoText: string | null): string | null {
   if (/^SOC-/i.test(memoText)) return 'SOC-*'
   if (/^daily-/i.test(memoText)) return 'daily-*'
   if (/^Full/i.test(memoText)) return 'Full*'
-  if (/^LEGO/i.test(memoText)) return 'LEGO*'
   return null
-}
-
-async function getCachedQuery<T>(key: string, query: () => Promise<T[]>): Promise<T[]> {
-  const cached = await getCached<T[]>(key)
-  if (cached !== null) return cached
-
-  const rows = await query()
-  await setCached(key, rows, CACHE_TTL_SECONDS)
-  return rows
 }
