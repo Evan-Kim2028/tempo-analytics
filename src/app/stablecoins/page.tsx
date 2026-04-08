@@ -1,5 +1,4 @@
 import { getStablecoinStats, getStablecoinDailyVolume } from '@/lib/analytics'
-import { StablecoinTVLChart } from '@/components/charts/StablecoinTVLChart'
 
 export const revalidate = 900
 
@@ -49,16 +48,6 @@ export default async function StablecoinsPage() {
           <p className="text-2xl font-semibold text-white">{fmtCount(totalXfers30d)}</p>
         </div>
       </div>
-
-      {/* Daily volume chart */}
-      {daily.length > 0 && (
-        <div className="bg-tempo-card border border-tempo-border rounded-lg p-6 mb-8">
-          <h2 className="text-base font-medium text-white mb-4">
-            Daily Transfer Volume — pathUSD & USDC.e (30d)
-          </h2>
-          <StablecoinTVLChart data={daily} />
-        </div>
-      )}
 
       {/* Stablecoin table */}
       <div className="bg-tempo-card border border-tempo-border rounded-lg overflow-hidden">
