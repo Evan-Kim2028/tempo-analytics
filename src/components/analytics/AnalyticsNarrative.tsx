@@ -52,7 +52,7 @@ export function AnalyticsNarrative({
         <TempoTxShareChart data={tempoShare} />
       </ChartCard>
 
-      <ChartCard title="Tempo Feature Adoption Over Time">
+      <ChartCard title="Tempo Wallet Adoption">
         <TempoFeatureAdoptionChart data={featureAdoption} />
       </ChartCard>
 

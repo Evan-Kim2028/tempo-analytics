@@ -1,5 +1,6 @@
 import { getCached, setCached } from '@/lib/cache'
 import { queryClickHouse } from '@/lib/clickhouse'
+import { KNOWN_TOKENS } from '@/lib/tokens'
 
 const CACHE_TTL_SECONDS = 900
 
@@ -16,8 +17,8 @@ function toNumber(value: string | number | null | undefined): number {
 
 export function labelFeeToken(address: string): string {
   const lower = address.toLowerCase()
-  if (lower === USDC_E) return 'USDC.e'
-  if (lower === PATH_USD) return 'pathUSD'
+  const known = KNOWN_TOKENS[lower]
+  if (known) return known.symbol
   return `${lower.slice(0, 6)}…${lower.slice(-4)}`
 }
 

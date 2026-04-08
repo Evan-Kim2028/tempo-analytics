@@ -7,6 +7,13 @@ jest.mock('@/lib/clickhouse', () => ({
   queryClickHouse: jest.fn(),
 }))
 
+jest.mock('@/lib/tokens', () => ({
+  KNOWN_TOKENS: {
+    '0x20c000000000000000000000b9537d11c60e8b50': { symbol: 'USDC.e' },
+    '0x20c0000000000000000000000000000000000000': { symbol: 'pathUSD' },
+  },
+}))
+
 import { getCached, setCached } from '@/lib/cache'
 import { queryClickHouse } from '@/lib/clickhouse'
 import {

@@ -61,7 +61,7 @@ describe('AnalyticsNarrative', () => {
     )
 
     expect(screen.getByRole('heading', { name: 'Tempo Tx Share Over Time' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Tempo Feature Adoption Over Time' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Tempo Wallet Adoption' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Fee Token Mix Over Time' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Sponsor Concentration Over Time' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Top Sponsors' })).toBeInTheDocument()
@@ -113,7 +113,7 @@ describe('AnalyticsNarrative', () => {
       screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
     ).toEqual([
       'Tempo Tx Share Over Time',
-      'Tempo Feature Adoption Over Time',
+      'Tempo Wallet Adoption',
       'Fee Token Mix Over Time',
       'Sponsor Concentration Over Time',
       'Top Sponsors',

@@ -31,18 +31,19 @@ export function TempoFeatureAdoptionChart({ data }: { data: TempoFeatureAdoption
           tick={{ fill: '#6B7280', fontSize: 11 }}
           tickFormatter={value => `${fmtPercent.format(value)}%`}
           width={48}
+          domain={[0, 'auto']}
         />
         <Tooltip
           contentStyle={{ backgroundColor: '#13131A', border: '1px solid #1E1E2E', borderRadius: 6 }}
           labelStyle={{ color: '#fff', marginBottom: 4 }}
           itemStyle={{ color: '#6B7280' }}
-          formatter={(value: number) => [`${fmtPercent.format(value)}%`, '']}
+          formatter={(value: number, name: string) => [`${fmtPercent.format(value)}%`, name]}
         />
         <Legend wrapperStyle={{ color: '#6B7280', fontSize: 12 }} />
-        <Line type="monotone" dataKey="sponsored_pct" name="Sponsored" stroke="#F59E0B" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-        <Line type="monotone" dataKey="batched_pct" name="Batched" stroke="#8B5CF6" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-        <Line type="monotone" dataKey="time_bounded_pct" name="Time bounded" stroke="#10B981" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-        <Line type="monotone" dataKey="fee_token_set_pct" name="Fee token" stroke="#0057FF" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+        <Line type="monotone" dataKey="sponsored_pct" name="Sponsored" stroke="#F59E0B" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
+        <Line type="monotone" dataKey="batched_pct" name="Batched" stroke="#8B5CF6" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
+        <Line type="monotone" dataKey="time_bounded_pct" name="Time bounded" stroke="#10B981" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
+        <Line type="monotone" dataKey="fee_token_set_pct" name="Fee token" stroke="#0057FF" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
       </LineChart>
     </ResponsiveContainer>
   )
