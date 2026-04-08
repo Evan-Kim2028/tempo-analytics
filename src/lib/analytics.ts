@@ -776,3 +776,93 @@ export async function getProtocolDexPoolTrades(token: string, limit = 50): Promi
     }
   })
 }
+
+// ─── NFT Minter Concentration ─────────────────────────────────────
+
+export interface NFTMinterConcentration {
+  total_mints:     number
+  unique_minters:  number
+  top10_share_pct: number  // percentage of all mints by top 10 addresses
+}
+
+export interface TopNFTMinter {
+  rank:        number
+  minter:      string  // 20-byte lowercase address
+  mints:       number
+  pct_total:   number  // rounded to 2dp
+  collections: number  // unique collections minted from
+}
+
+// WHERE clause shared between both NFT minter queries
+const NFT_MINT_FILTER = `
+  selector = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+  AND topic3 IS NOT NULL
+  AND topic1 = '0x0000000000000000000000000000000000000000000000000000000000000000'
+`
+
+export async function getNFTMinterConcentration(): Promise<NFTMinterConcentration> {
+  const key = 'analytics:nft:minter_concentration'
+  const cached = await getCached<NFTMinterConcentration>(key)
+  if (cached) return cached
+
+  const [totalRows, top10Rows] = await Promise.all([
+    queryClickHouse<{ total_mints: string; unique_minters: string }>(`
+      SELECT count() AS total_mints, uniq(topic2) AS unique_minters
+      FROM logs
+      WHERE ${NFT_MINT_FILTER}
+    `),
+    queryClickHouse<{ mints: string }>(`
+      SELECT count() AS mints
+      FROM logs
+      WHERE ${NFT_MINT_FILTER}
+      GROUP BY topic2
+      ORDER BY mints DESC
+      LIMIT 10
+    `),
+  ])
+
+  const total_mints    = Number(totalRows[0]?.total_mints    ?? 0)
+  const unique_minters = Number(totalRows[0]?.unique_minters ?? 0)
+  const top10_sum      = top10Rows.reduce((s, r) => s + Number(r.mints), 0)
+  const top10_share_pct = total_mints > 0
+    ? Math.round((top10_sum / total_mints) * 1000) / 10
+    : 0
+
+  const result: NFTMinterConcentration = { total_mints, unique_minters, top10_share_pct }
+  await setCached(key, result, 900)
+  return result
+}
+
+export async function getTopNFTMinters(limit = 50): Promise<TopNFTMinter[]> {
+  const key = `analytics:nft:top_minters:${limit}`
+  const cached = await getCached<TopNFTMinter[]>(key)
+  if (cached) return cached
+
+  const rows = await queryClickHouse<{
+    minter: string; mints: string; pct_total: string; collections: string
+  }>(`
+    SELECT
+      '0x' || substring(topic2, 27)                          AS minter,
+      count()                                                AS mints,
+      round(count() * 100.0 / (
+        SELECT count() FROM logs WHERE ${NFT_MINT_FILTER}
+      ), 2)                                                  AS pct_total,
+      uniq(address)                                          AS collections
+    FROM logs
+    WHERE ${NFT_MINT_FILTER}
+    GROUP BY topic2
+    ORDER BY mints DESC
+    LIMIT ${limit}
+  `)
+
+  const result: TopNFTMinter[] = rows.map((r, i) => ({
+    rank:        i + 1,
+    minter:      r.minter,
+    mints:       Number(r.mints),
+    pct_total:   Number(r.pct_total),
+    collections: Number(r.collections),
+  }))
+
+  await setCached(key, result, 900)
+  return result
+}
