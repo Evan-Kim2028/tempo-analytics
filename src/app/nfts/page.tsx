@@ -54,6 +54,10 @@ export default async function NFTsPage() {
       <div className="bg-tempo-card border border-tempo-border rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-tempo-border">
           <h2 className="text-base font-medium text-white">Top Collections (all time)</h2>
+          <p className="text-tempo-muted text-xs mt-1">
+            Each row is an ERC-721 contract — the on-chain address that mints and tracks ownership of an NFT set.
+            Transfers include mints, secondary sales, and direct sends.
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

@@ -1,16 +1,20 @@
 import {
   getDexDailyVolumeUSD,
   getTopPools,
-  getFeeTokenDailyStats,
+  getFeeTokenAllDailyStats,
   getProtocolDexDailyStats,
+  getProtocolDexTokenDailyStats,
   getProtocolDexPools,
   type DexDailyVolumeUSD,
 } from '@/lib/analytics'
 import { DexVolumeChart } from '@/components/charts/DexVolumeChart'
-import { FeeAmmChart } from '@/components/charts/FeeAmmChart'
+import { FeeTokenAllChart } from '@/components/charts/FeeTokenAllChart'
+import { ProtocolDexTokenChart } from '@/components/charts/ProtocolDexTokenChart'
 import { getProtocolDexTVL, getCommunityDexTVL } from '@/lib/defi'
 import { StatCard } from '@/components/StatCard'
 import { ProtocolDexPoolExplorer } from '@/components/ProtocolDexPoolExplorer'
+import { PeriodToggle } from '@/components/PeriodToggle'
+import { Suspense } from 'react'
 
 export const revalidate = 900
 
@@ -25,29 +29,46 @@ const fmtCount = (n: number) =>
 const fmtPct = (n: number, total: number) =>
   total > 0 ? `${((n / total) * 100).toFixed(1)}%` : '—'
 
-export default async function DexPage() {
-  const [feeDaily, protocolDaily, communityDaily, pools, protocolTVL, communityTVL, protocolDexPools] = await Promise.all([
-    getFeeTokenDailyStats(30),
-    getProtocolDexDailyStats(30),
-    getDexDailyVolumeUSD(30),
+function parseDays(raw: string | undefined): number {
+  const n = Number(raw)
+  return [1, 7, 30].includes(n) ? n : 30
+}
+
+export default async function DexPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ days?: string }>
+}) {
+  const { days: rawDays } = await searchParams
+  const days = parseDays(rawDays)
+
+  const [feeData, protocolDaily, protocolTokenData, communityDaily, pools, protocolTVL, communityTVL, protocolDexPools] = await Promise.all([
+    getFeeTokenAllDailyStats(days),
+    getProtocolDexDailyStats(days),
+    getProtocolDexTokenDailyStats(days),
+    getDexDailyVolumeUSD(days),
     getTopPools(10),
     getProtocolDexTVL(),
     getCommunityDexTVL(),
-    getProtocolDexPools(30),
+    getProtocolDexPools(days),
   ])
 
-  // Fee AMM aggregates
-  const feeTotal30d   = feeDaily.reduce((s, d) => s + d.total, 0)
-  const feeUsdcE30d   = feeDaily.reduce((s, d) => s + d.usdc_e, 0)
-  const feePathusd30d = feeDaily.reduce((s, d) => s + d.pathusd, 0)
+  // Fee AMM aggregates (derived from all-token breakdown)
+  const feeTotal   = feeData.tokens.reduce((s, t) => s + t.total, 0)
+  const USDC_E  = '0x20c000000000000000000000b9537d11c60e8b50'
+  const PATHUSD = '0x20c0000000000000000000000000000000000000'
+  const feeUsdcE   = feeData.tokens.find(t => t.address === USDC_E)?.total ?? 0
+  const feePathusd = feeData.tokens.find(t => t.address === PATHUSD)?.total ?? 0
 
   // Protocol DEX aggregates
-  const protocolSwaps30d = protocolDaily.reduce((s, d) => s + d.swaps, 0)
-  const protocolVol30d   = protocolDaily.reduce((s, d) => s + d.volume_usd, 0)
+  const protocolSwaps = protocolDaily.reduce((s, d) => s + d.swaps, 0)
+  const protocolVol   = protocolDaily.reduce((s, d) => s + d.volume_usd, 0)
 
   // Community DEX aggregates
-  const communityVol30d   = communityDaily.reduce((s, d) => s + d.volume_usd, 0)
-  const communitySwaps30d = communityDaily.reduce((s, d) => s + d.swap_count, 0)
+  const communityVol   = communityDaily.reduce((s, d) => s + d.volume_usd, 0)
+  const communitySwaps = communityDaily.reduce((s, d) => s + d.swap_count, 0)
+
+  const periodLabel = days === 1 ? '1d' : days === 7 ? '7d' : '30d'
 
   // DexVolumeChart expects DexDailyVolumeUSD shape; adapt protocol stats
   const protocolForChart: DexDailyVolumeUSD[] = protocolDaily.map(d => ({
@@ -58,11 +79,16 @@ export default async function DexPage() {
 
   return (
     <main className="max-w-7xl mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-white mb-1">DEX</h1>
-        <p className="text-tempo-muted text-sm">
-          Tempo has three exchange mechanisms: Fee AMM, Protocol DEX, and Community DEX — each serving a different purpose.
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-white mb-1">DEX</h1>
+          <p className="text-tempo-muted text-sm">
+            Tempo has three exchange mechanisms: Fee AMM, Protocol DEX, and Community DEX — each serving a different purpose.
+          </p>
+        </div>
+        <Suspense>
+          <PeriodToggle currentDays={days} />
+        </Suspense>
       </div>
 
       {/* ── Section 1: Fee AMM ── */}
@@ -82,15 +108,15 @@ export default async function DexPage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <StatCard label="Fee-bearing Txs (30d)" value={fmtCount(feeTotal30d)} />
-          <StatCard label="USDC.e Share (30d)" value={fmtPct(feeUsdcE30d, feeTotal30d)} sub={`${fmtCount(feeUsdcE30d)} txs`} />
-          <StatCard label="pathUSD Share (30d)" value={fmtPct(feePathusd30d, feeTotal30d)} sub={`${fmtCount(feePathusd30d)} txs`} />
+          <StatCard label={`Fee-bearing Txs (${periodLabel})`} value={fmtCount(feeTotal)} />
+          <StatCard label={`USDC.e Share (${periodLabel})`} value={fmtPct(feeUsdcE, feeTotal)} sub={`${fmtCount(feeUsdcE)} txs`} />
+          <StatCard label={`pathUSD Share (${periodLabel})`} value={fmtPct(feePathusd, feeTotal)} sub={`${fmtCount(feePathusd)} txs`} />
         </div>
 
-        {feeDaily.length > 0 && (
+        {feeData.days.length > 0 && (
           <div className="bg-tempo-card border border-tempo-border rounded-lg p-6">
-            <h3 className="text-sm font-medium text-white mb-4">Daily Fee Token Usage (30d)</h3>
-            <FeeAmmChart data={feeDaily} />
+            <h3 className="text-sm font-medium text-white mb-4">Daily Fee Token Usage ({periodLabel})</h3>
+            <FeeTokenAllChart data={feeData} />
           </div>
         )}
       </section>
@@ -111,15 +137,21 @@ export default async function DexPage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <StatCard label="30d Swaps" value={fmtCount(protocolSwaps30d)} />
-          <StatCard label="30d Volume" value={fmtUSD(protocolVol30d)} />
           <StatCard label="TVL" value={fmtUSD(protocolTVL)} sub="stablecoins held by precompile" />
+          <StatCard label={`${periodLabel} Volume`} value={fmtUSD(protocolVol)} />
+          <StatCard label={`${periodLabel} Swaps`} value={fmtCount(protocolSwaps)} />
         </div>
 
         {protocolForChart.length > 0 && (
-          <div className="bg-tempo-card border border-tempo-border rounded-lg p-6">
-            <h3 className="text-sm font-medium text-white mb-4">Daily Volume (30d)</h3>
-            <DexVolumeChart data={protocolForChart} color="#8B5CF6" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-tempo-card border border-tempo-border rounded-lg p-6">
+              <h3 className="text-sm font-medium text-white mb-4">Daily Volume ({periodLabel})</h3>
+              <DexVolumeChart data={protocolForChart} color="#8B5CF6" />
+            </div>
+            <div className="bg-tempo-card border border-tempo-border rounded-lg p-6">
+              <h3 className="text-sm font-medium text-white mb-4">Volume by Token ({periodLabel})</h3>
+              <ProtocolDexTokenChart data={protocolTokenData} />
+            </div>
           </div>
         )}
       </section>
@@ -140,29 +172,29 @@ export default async function DexPage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <StatCard label="30d Volume (whitelisted pools)" value={fmtUSD(communityVol30d)} />
-          <StatCard label="30d Swaps (all pools)" value={fmtCount(communitySwaps30d)} />
           <StatCard label="TVL" value={fmtUSD(communityTVL)} sub="top 10 pools, stablecoin-side ×2" />
+          <StatCard label={`${periodLabel} Volume (whitelisted pools)`} value={fmtUSD(communityVol)} />
+          <StatCard label={`${periodLabel} Swaps (all pools)`} value={fmtCount(communitySwaps)} />
         </div>
 
         {communityDaily.length > 0 && (
           <div className="bg-tempo-card border border-tempo-border rounded-lg p-6 mb-6">
-            <h3 className="text-sm font-medium text-white mb-4">Daily USD Volume (30d)</h3>
+            <h3 className="text-sm font-medium text-white mb-4">Daily USD Volume ({periodLabel})</h3>
             <DexVolumeChart data={communityDaily} />
           </div>
         )}
 
         <div className="bg-tempo-card border border-tempo-border rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-tempo-border">
-            <h3 className="text-base font-medium text-white">Top Pools (30d)</h3>
+            <h3 className="text-base font-medium text-white">Top Pools ({periodLabel})</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-tempo-border">
                   <th className="text-left px-6 py-3 text-tempo-muted font-normal">Pair</th>
-                  <th className="text-right px-4 py-3 text-tempo-muted font-normal">30d Volume</th>
-                  <th className="text-right px-6 py-3 text-tempo-muted font-normal">30d Swaps</th>
+                  <th className="text-right px-4 py-3 text-tempo-muted font-normal">{periodLabel} Volume</th>
+                  <th className="text-right px-6 py-3 text-tempo-muted font-normal">{periodLabel} Swaps</th>
                 </tr>
               </thead>
               <tbody>
