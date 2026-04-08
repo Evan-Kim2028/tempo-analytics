@@ -771,10 +771,10 @@ export async function getProtocolDexTokenDailyStats(days = 30): Promise<Protocol
   const topTokenAddrs = new Set(sorted.slice(0, TOP_PROTOCOL_DEX_TOKENS).map(([a]) => a))
   const hasOthers = sorted.length > TOP_PROTOCOL_DEX_TOKENS
 
-  // Resolve symbols for top tokens; skip RPC — unknown tokens show as addresses
+  // Resolve symbols for top tokens via RPC if not in local lists
   const tokenEntries = await Promise.all(
     sorted.slice(0, TOP_PROTOCOL_DEX_TOKENS).map(async ([address, rawTotal]) => {
-      const info = await getTokenInfo(address, { skipRPC: true })
+      const info = await getTokenInfo(address)
       return {
         address,
         symbol: info?.symbol ?? `${address.slice(0, 6)}…${address.slice(-4)}`,
@@ -862,20 +862,19 @@ export async function getProtocolDexPools(days = 30): Promise<ProtocolDexPool[]>
   ]))
 
   const result: ProtocolDexPool[] = await Promise.all(rows.map(async r => {
-    // skipRPC: pool explorer shows address for unknown tokens — no need for on-chain lookup
-    const info = await getTokenInfo(r.token, { skipRPC: true })
-    const whitelisted = info !== null
+    const info = await getTokenInfo(r.token)
     const swaps_30d = Number(r.swaps)
-    const volume_usd = whitelisted ? Number(r.volume_raw) / 1e6 : 0
+    // volume_raw is always 6-decimal (pathUSD-denominated), so always safe to divide by 1e6
+    const volume_usd = Number(r.volume_raw) / 1e6
     const dau = dauMap.get(`${r.pool_id}:${r.token}`) ?? { dau_1d: 0, dau_7d: 0, dau_30d: 0 }
     return {
-      poolId:    Number(r.pool_id),
-      token:     r.token,
-      symbol:    info?.symbol ?? `${r.token.slice(0, 6)}…${r.token.slice(-4)}`,
+      poolId:      Number(r.pool_id),
+      token:       r.token,
+      symbol:      info?.symbol ?? `${r.token.slice(0, 6)}…${r.token.slice(-4)}`,
       swaps_30d,
       volume_usd,
-      avg_trade: swaps_30d > 0 ? volume_usd / swaps_30d : 0,
-      whitelisted,
+      avg_trade:   swaps_30d > 0 ? volume_usd / swaps_30d : 0,
+      whitelisted: info !== null,
       ...dau,
     }
   }))

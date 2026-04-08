@@ -56,7 +56,8 @@ test('getProtocolDexPools marks known tokens as whitelisted', async () => {
   expect(pools[0].symbol).toBe('USDC.e')
   expect(pools[0].volume_usd).toBeCloseTo(500)
   expect(pools[1].whitelisted).toBe(false)
-  expect(pools[1].volume_usd).toBe(0)
+  // volume_usd is always shown (volume_raw / 1e6) regardless of whitelisted status
+  expect(pools[1].volume_usd).toBeCloseTo(200)
 })
 
 test('getProtocolDexPools avg_trade is volume_usd / swaps_30d', async () => {
