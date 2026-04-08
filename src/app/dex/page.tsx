@@ -8,6 +8,7 @@ import {
 import { DexVolumeChart } from '@/components/charts/DexVolumeChart'
 import { FeeAmmChart } from '@/components/charts/FeeAmmChart'
 import { getProtocolDexTVL, getCommunityDexTVL } from '@/lib/defi'
+import { StatCard } from '@/components/StatCard'
 
 export const revalidate = 900
 
@@ -78,20 +79,9 @@ export default async function DexPage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
-            <p className="text-tempo-muted text-xs mb-1">Fee-bearing Txs (30d)</p>
-            <p className="text-2xl font-semibold text-white">{fmtCount(feeTotal30d)}</p>
-          </div>
-          <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
-            <p className="text-tempo-muted text-xs mb-1">USDC.e Share (30d)</p>
-            <p className="text-2xl font-semibold text-white">{fmtPct(feeUsdcE30d, feeTotal30d)}</p>
-            <p className="text-tempo-muted text-xs mt-1">{fmtCount(feeUsdcE30d)} txs</p>
-          </div>
-          <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
-            <p className="text-tempo-muted text-xs mb-1">pathUSD Share (30d)</p>
-            <p className="text-2xl font-semibold text-white">{fmtPct(feePathusd30d, feeTotal30d)}</p>
-            <p className="text-tempo-muted text-xs mt-1">{fmtCount(feePathusd30d)} txs</p>
-          </div>
+          <StatCard label="Fee-bearing Txs (30d)" value={fmtCount(feeTotal30d)} />
+          <StatCard label="USDC.e Share (30d)" value={fmtPct(feeUsdcE30d, feeTotal30d)} sub={`${fmtCount(feeUsdcE30d)} txs`} />
+          <StatCard label="pathUSD Share (30d)" value={fmtPct(feePathusd30d, feeTotal30d)} sub={`${fmtCount(feePathusd30d)} txs`} />
         </div>
 
         {feeDaily.length > 0 && (
@@ -118,25 +108,15 @@ export default async function DexPage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
-            <p className="text-tempo-muted text-xs mb-1">30d Swaps</p>
-            <p className="text-2xl font-semibold text-white">{fmtCount(protocolSwaps30d)}</p>
-          </div>
-          <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
-            <p className="text-tempo-muted text-xs mb-1">30d Volume</p>
-            <p className="text-2xl font-semibold text-white">{fmtUSD(protocolVol30d)}</p>
-          </div>
-          <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
-            <p className="text-tempo-muted text-xs mb-1">TVL</p>
-            <p className="text-2xl font-semibold text-white">{fmtUSD(protocolTVL)}</p>
-            <p className="text-tempo-muted text-xs mt-1">stablecoins held by precompile</p>
-          </div>
+          <StatCard label="30d Swaps" value={fmtCount(protocolSwaps30d)} />
+          <StatCard label="30d Volume" value={fmtUSD(protocolVol30d)} />
+          <StatCard label="TVL" value={fmtUSD(protocolTVL)} sub="stablecoins held by precompile" />
         </div>
 
         {protocolForChart.length > 0 && (
           <div className="bg-tempo-card border border-tempo-border rounded-lg p-6">
             <h3 className="text-sm font-medium text-white mb-4">Daily Volume (30d)</h3>
-            <DexVolumeChart data={protocolForChart} />
+            <DexVolumeChart data={protocolForChart} color="#8B5CF6" />
           </div>
         )}
       </section>
@@ -157,19 +137,9 @@ export default async function DexPage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
-            <p className="text-tempo-muted text-xs mb-1">30d Volume (whitelisted pools)</p>
-            <p className="text-2xl font-semibold text-white">{fmtUSD(communityVol30d)}</p>
-          </div>
-          <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
-            <p className="text-tempo-muted text-xs mb-1">30d Swaps (all pools)</p>
-            <p className="text-2xl font-semibold text-white">{fmtCount(communitySwaps30d)}</p>
-          </div>
-          <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
-            <p className="text-tempo-muted text-xs mb-1">TVL</p>
-            <p className="text-2xl font-semibold text-white">{fmtUSD(communityTVL)}</p>
-            <p className="text-tempo-muted text-xs mt-1">top 10 pools, stablecoin-side ×2</p>
-          </div>
+          <StatCard label="30d Volume (whitelisted pools)" value={fmtUSD(communityVol30d)} />
+          <StatCard label="30d Swaps (all pools)" value={fmtCount(communitySwaps30d)} />
+          <StatCard label="TVL" value={fmtUSD(communityTVL)} sub="top 10 pools, stablecoin-side ×2" />
         </div>
 
         {communityDaily.length > 0 && (
