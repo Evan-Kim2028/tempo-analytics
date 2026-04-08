@@ -6,6 +6,7 @@ import { queryTidx } from '@/lib/tidx'
 // Protocol-level constants — these are well-known public contract addresses
 const TEMPO_USDC_E = '0x20C000000000000000000000b9537d11c60E8b50'
 const SOLANA_USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+const TEMPO_RECIPIENT = process.env.TEMPO_RECIPIENT_ADDRESS as `0x${string}` | undefined
 
 // $0.10 expressed in each token's native base units (both USDC, 6 decimals)
 const EXPORT_PRICE = '0.10'          // human-readable for tempo.charge (parseUnits internally)
@@ -92,7 +93,7 @@ function rowsToCsv(result: { columns?: string[]; rows: Record<string, string | n
 const mppx = Mppx.create({
   methods: [
     tempo.charge({
-      recipient: process.env.TEMPO_RECIPIENT_ADDRESS,
+      recipient: TEMPO_RECIPIENT,
       currency: TEMPO_USDC_E,
     }),
     solana({
