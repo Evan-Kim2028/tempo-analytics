@@ -1,6 +1,6 @@
 import { AnalyticsNarrative } from '@/components/analytics/AnalyticsNarrative'
 import {
-  getFeeTokenMixByDay,
+  getFeeTokenMixChartData,
   getSponsorConcentrationByDay,
   getTempoFeatureAdoptionByDay,
   getTempoTxShareByDay,
@@ -21,7 +21,7 @@ export default async function AnalyticsPage() {
   ] = await Promise.all([
     getTempoTxShareByDay(),
     getTempoFeatureAdoptionByDay(),
-    getFeeTokenMixByDay(),
+    getFeeTokenMixChartData(),
     getSponsorConcentrationByDay(),
     getTopSponsors(),
     getWebauthnUsageByDay(),

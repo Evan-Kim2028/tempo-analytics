@@ -1,0 +1,87 @@
+<h2>Payments Tab Directions</h2>
+<p class="subtitle">Same memo-backed dataset in all three. The difference is what the tab optimizes for first.</p>
+
+<div class="cards">
+  <div class="card" data-choice="operator" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. Operator View</div>
+        <div class="mockup-body">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px;">
+            <div class="placeholder" style="height:58px;">Payments 30d</div>
+            <div class="placeholder" style="height:58px;">Success Rate</div>
+            <div class="placeholder" style="height:58px;">Failed Attempts</div>
+            <div class="placeholder" style="height:58px;">Unique Recipients</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1.3fr 0.7fr;gap:10px;margin-bottom:10px;">
+            <div class="placeholder" style="height:180px;">Daily success vs failed trend</div>
+            <div class="placeholder" style="height:180px;">Readable / opaque / empty memo mix</div>
+          </div>
+          <div style="display:grid;grid-template-columns:0.9fr 1.1fr;gap:10px;">
+            <div class="placeholder" style="height:220px;">Top recipients by amount and count</div>
+            <div class="placeholder" style="height:220px;">Recent payments table</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Operator View</h3>
+      <p>Best for answering: who is getting paid, how much, and whether payment attempts are succeeding.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="explorer" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. Explorer View</div>
+        <div class="mockup-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+            <div class="mock-input">Recipient filter</div>
+            <div class="mock-input">Sender filter</div>
+            <div class="mock-input">Memo family</div>
+            <div class="mock-input">Status</div>
+          </div>
+          <div class="placeholder" style="height:300px;margin-bottom:10px;">Recent payments table with decoded memo, amount, status, sender, recipient</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="placeholder" style="height:140px;">Selected memo / tx detail</div>
+            <div class="placeholder" style="height:140px;">Recipient stats for selection</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Explorer View</h3>
+      <p>Best for analysts who want rows first and summary second.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="protocol" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. Protocol View</div>
+        <div class="mockup-body">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px;">
+            <div class="placeholder" style="height:58px;">Readable memos</div>
+            <div class="placeholder" style="height:58px;">Opaque memos</div>
+            <div class="placeholder" style="height:58px;">Unique senders</div>
+            <div class="placeholder" style="height:58px;">Unique recipients</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+            <div class="placeholder" style="height:180px;">Memo family distribution</div>
+            <div class="placeholder" style="height:180px;">Success vs failure trend</div>
+          </div>
+          <div class="placeholder" style="height:220px;">Recipient concentration, sender concentration, memo reuse stats</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Protocol View</h3>
+      <p>Best for chain behavior analysis, but weaker if the goal is to present payments as an actual product surface.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Recommendation</h3>
+  <p class="subtitle">A. Operator View. The data is recipient-concentrated and includes failed attempts, so a landing page built around volume, success rate, and top payment rails will read much more cleanly than a raw row explorer.</p>
+</div>

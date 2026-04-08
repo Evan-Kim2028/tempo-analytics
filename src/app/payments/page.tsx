@@ -25,13 +25,13 @@ export default async function PaymentsPage() {
       </header>
 
       <PaymentsSummary summary={data.summary} />
-      <RecentPaymentsTable rows={data.recent} />
       <PaymentsNarrative
         daily={data.daily}
         topRecipientsByAmount={data.topRecipientsByAmount}
         topRecipientsByCount={data.topRecipientsByCount}
         topSenders={data.topSenders}
       />
+      <RecentPaymentsTable rows={data.recent} />
     </div>
   )
 }

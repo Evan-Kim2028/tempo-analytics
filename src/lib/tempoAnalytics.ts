@@ -195,6 +195,38 @@ export async function getFeeTokenMixByDay(days = 30): Promise<FeeTokenMixPoint[]
   })
 }
 
+export interface FeeTokenMixChartData {
+  /** One record per day; keys are fee-token labels + 'day' */
+  rows:   Array<Record<string, string | number>>
+  /** Token labels ordered by first appearance (most-used first per ClickHouse sort) */
+  tokens: string[]
+}
+
+export async function getFeeTokenMixChartData(days = 30): Promise<FeeTokenMixChartData> {
+  const key = `tempo-analytics:fee-token-mix-chart:${days}`
+  const cached = await getCached<FeeTokenMixChartData>(key)
+  if (cached !== null) return cached
+
+  const points = await getFeeTokenMixByDay(days)
+
+  const rowsByDay = new Map<string, Record<string, string | number>>()
+  const tokens: string[] = []
+
+  for (const point of points) {
+    if (!tokens.includes(point.fee_token)) tokens.push(point.fee_token)
+    const row = rowsByDay.get(point.day) ?? { day: point.day }
+    row[point.fee_token] = point.pct_of_day
+    rowsByDay.set(point.day, row)
+  }
+
+  const result: FeeTokenMixChartData = {
+    rows:   Array.from(rowsByDay.values()),
+    tokens,
+  }
+  await setCached(key, result, CACHE_TTL_SECONDS)
+  return result
+}
+
 export async function getSponsorConcentrationByDay(
   days = 30,
   minSponsored = 100

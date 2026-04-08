@@ -9,6 +9,7 @@ jest.mock('recharts', () => {
   return {
     ResponsiveContainer: Container,
     AreaChart: Container,
+    BarChart: Container,
     LineChart: Container,
     CartesianGrid: () => null,
     XAxis: () => null,
@@ -16,6 +17,7 @@ jest.mock('recharts', () => {
     Tooltip: () => null,
     Legend: () => null,
     Area: Series,
+    Bar: Series,
     Line: Series,
   }
 })

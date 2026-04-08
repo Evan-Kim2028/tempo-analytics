@@ -7,6 +7,7 @@ jest.mock('recharts', () => {
   return {
     ResponsiveContainer: Container,
     AreaChart: Container,
+    BarChart: Container,
     LineChart: Container,
     CartesianGrid: () => null,
     XAxis: () => null,
@@ -14,6 +15,7 @@ jest.mock('recharts', () => {
     Tooltip: () => null,
     Legend: () => null,
     Area: Series,
+    Bar: Series,
     Line: Series,
   }
 })
@@ -52,5 +54,5 @@ test('renders the payments charts and concentration sections', () => {
   expect(screen.getByRole('heading', { name: 'Daily Payment Amount' })).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Memo Pattern Mix' })).toBeInTheDocument()
   expect(screen.getByText('Top Recipients By Amount')).toBeInTheDocument()
-  expect(screen.getByText('0x03acdc3e7bb74f1c5d29b1118f920e1b5fc62fd7')).toBeInTheDocument()
+  expect(screen.getByTitle('0x03acdc3e7bb74f1c5d29b1118f920e1b5fc62fd7')).toBeInTheDocument()
 })

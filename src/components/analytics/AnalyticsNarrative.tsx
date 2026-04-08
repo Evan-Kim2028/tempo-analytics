@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import {
-  type FeeTokenMixPoint,
+  type FeeTokenMixChartData,
   type SponsorConcentrationPoint,
   type TempoFeatureAdoptionPoint,
   type TempoTxSharePoint,
@@ -17,7 +17,7 @@ import { TopSponsorsTable } from '@/components/analytics/TopSponsorsTable'
 interface AnalyticsNarrativeProps {
   tempoShare: TempoTxSharePoint[]
   featureAdoption: TempoFeatureAdoptionPoint[]
-  feeTokenMix: FeeTokenMixPoint[]
+  feeTokenMix: FeeTokenMixChartData
   sponsorConcentration: SponsorConcentrationPoint[]
   topSponsors: TopSponsorRow[]
   webauthnUsage: WebauthnUsagePoint[]

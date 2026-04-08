@@ -29,10 +29,10 @@ describe('AnalyticsNarrative', () => {
     const featureAdoption = [
       { day: '2026-04-01', sponsored_pct: 4, batched_pct: 2, time_bounded_pct: 80, fee_token_set_pct: 25 },
     ]
-    const feeTokenMix = [
-      { day: '2026-04-01', fee_token: 'USDC.e', txs: 74, pct_of_day: 74 },
-      { day: '2026-04-01', fee_token: 'pathUSD', txs: 26, pct_of_day: 26 },
-    ]
+    const feeTokenMix = {
+      rows: [{ day: '2026-04-01', 'USDC.e': 74, 'pathUSD': 26 }],
+      tokens: ['USDC.e', 'pathUSD'],
+    }
     const sponsorConcentration = [
       { day: '2026-04-01', sponsored_txs: 120, top1_pct: 60, top5_pct: 95, sponsor_count: 5 },
     ]
@@ -78,10 +78,10 @@ describe('AnalyticsNarrative', () => {
     const featureAdoption = [
       { day: '2026-04-01', sponsored_pct: 4, batched_pct: 2, time_bounded_pct: 80, fee_token_set_pct: 25 },
     ]
-    const feeTokenMix = [
-      { day: '2026-04-01', fee_token: 'USDC.e', txs: 74, pct_of_day: 74 },
-      { day: '2026-04-01', fee_token: 'pathUSD', txs: 26, pct_of_day: 26 },
-    ]
+    const feeTokenMix = {
+      rows: [{ day: '2026-04-01', 'USDC.e': 74, 'pathUSD': 26 }],
+      tokens: ['USDC.e', 'pathUSD'],
+    }
     const sponsorConcentration = [
       { day: '2026-04-01', sponsored_txs: 120, top1_pct: 60, top5_pct: 95, sponsor_count: 5 },
     ]

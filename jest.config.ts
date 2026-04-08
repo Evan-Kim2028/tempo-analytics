@@ -9,6 +9,7 @@ const config: Config = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1' },
   modulePathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/.worktrees/'],
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.next/', '<rootDir>/__tests__/helpers/'],
   // mppx-solana ships TypeScript source only — let Next.js SWC transform it
   transformIgnorePatterns: ['/node_modules/(?!(mppx-solana)/)'],
 }

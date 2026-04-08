@@ -1,53 +1,22 @@
 'use client'
-
 import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
+  CartesianGrid, Legend, Line, LineChart,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
-import type { FeeTokenMixPoint } from '@/lib/tempoAnalytics'
-
-type ChartRow = {
-  day: string
-  [token: string]: number | string
-}
+import type { FeeTokenMixChartData } from '@/lib/tempoAnalytics'
 
 const COLORS = ['#0057FF', '#10B981', '#F59E0B', '#8B5CF6', '#F43F5E', '#06B6D4']
-const fmtPercent = new Intl.NumberFormat('en-US', {
-  maximumFractionDigits: 1,
-})
+const fmtPercent = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 })
 
-function buildChartData(data: FeeTokenMixPoint[]): { rows: ChartRow[]; tokens: string[] } {
-  const rowsByDay = new Map<string, ChartRow>()
-  const tokens: string[] = []
-
-  for (const point of data) {
-    const token = point.fee_token
-    if (!tokens.includes(token)) tokens.push(token)
-
-    const row = rowsByDay.get(point.day) ?? { day: point.day }
-    row[token] = point.pct_of_day
-    rowsByDay.set(point.day, row)
-  }
-
-  return { rows: Array.from(rowsByDay.values()), tokens }
-}
-
-export function FeeTokenMixChart({ data }: { data: FeeTokenMixPoint[] }) {
-  const { rows, tokens } = buildChartData(data)
+export function FeeTokenMixChart({ data }: { data: FeeTokenMixChartData }) {
   return (
     <ResponsiveContainer width="100%" height={280}>
-      <LineChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+      <LineChart data={data.rows} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#1E1E2E" />
         <XAxis
           dataKey="day"
           tick={{ fill: '#6B7280', fontSize: 11 }}
-          tickFormatter={value => value.slice(5)}
+          tickFormatter={value => String(value).slice(5)}
           interval="preserveStartEnd"
         />
         <YAxis
@@ -62,7 +31,7 @@ export function FeeTokenMixChart({ data }: { data: FeeTokenMixPoint[] }) {
           formatter={(value: number) => [`${fmtPercent.format(value)}%`, '']}
         />
         <Legend wrapperStyle={{ color: '#6B7280', fontSize: 12 }} />
-        {tokens.map((token, index) => (
+        {data.tokens.map((token, index) => (
           <Line
             key={token}
             type="monotone"
