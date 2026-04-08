@@ -60,7 +60,23 @@ else
   fail "Daily stats MV only has $DAYS_IN_MV days - may need backfill"
 fi
 
-echo "4. ERC-20 daily volume MV covers pathUSD..."
+echo "4. Daily unique-sender MV has matching day coverage..."
+UNIQ_DAYS_IN_MV=$(ch "SELECT uniq(day) FROM ${CLICKHOUSE_DB}.mv_daily_uniq")
+if [ "$UNIQ_DAYS_IN_MV" -eq "$DAYS_IN_MV" ]; then
+  pass "Daily unique-sender MV day coverage matches mv_daily_stats: $UNIQ_DAYS_IN_MV days"
+else
+  fail "Daily unique-sender MV coverage mismatch: mv_daily_uniq=$UNIQ_DAYS_IN_MV vs mv_daily_stats=$DAYS_IN_MV"
+fi
+
+echo "5. Inscription MV has recent mint activity..."
+INSCRIPTION_MINTS=$(ch "SELECT sum(count) FROM ${CLICKHOUSE_DB}.mv_inscription_daily WHERE op = 'mint'")
+if [ "${INSCRIPTION_MINTS}" -ge 1000 ]; then
+  pass "Inscription MV total mint rows: $INSCRIPTION_MINTS (>= 1,000)"
+else
+  fail "Inscription MV mint activity too low: $INSCRIPTION_MINTS - check mv_inscription_daily backfill"
+fi
+
+echo "6. ERC-20 daily volume MV covers pathUSD..."
 PATHUSD_VOL=$(ch "SELECT round(sum(volume_raw)/1e6) FROM ${CLICKHOUSE_DB}.mv_erc20_volume_daily WHERE token='0x20c0000000000000000000000000000000000000'")
 if python3 -c "exit(0 if float('$PATHUSD_VOL') >= 34000000 else 1)"; then
   pass "pathUSD all-time ERC-20 volume: \$$PATHUSD_VOL (>= \$34M)"
@@ -68,7 +84,7 @@ else
   fail "pathUSD ERC-20 volume too low: \$$PATHUSD_VOL - check mv_erc20_volume_daily"
 fi
 
-echo "5. Fee-token MV has recent data..."
+echo "7. Fee-token MV has recent data..."
 FEE_TOKEN_30D=$(ch "SELECT sum(txs) FROM ${CLICKHOUSE_DB}.mv_fee_token_daily WHERE day >= today() - 30")
 if [ "${FEE_TOKEN_30D}" -ge 1000 ]; then
   pass "Fee-token MV 30d txs: $FEE_TOKEN_30D (>= 1,000)"
@@ -76,7 +92,7 @@ else
   fail "Fee-token MV too low: $FEE_TOKEN_30D - check mv_fee_token_daily backfill"
 fi
 
-echo "6. Community DEX decoded swap MV matches swap-count MV..."
+echo "8. Community DEX decoded swap MV matches swap-count MV..."
 DEX_SWAP_COUNTS=$(ch "SELECT sum(swap_count) FROM ${CLICKHOUSE_DB}.mv_dex_daily")
 DEX_DECODED_COUNTS=$(ch "SELECT sum(swap_count) FROM ${CLICKHOUSE_DB}.mv_dex_swap_amounts_daily")
 if [ "$DEX_SWAP_COUNTS" = "$DEX_DECODED_COUNTS" ]; then
@@ -85,7 +101,7 @@ else
   fail "Community DEX MV mismatch: mv_dex_daily=$DEX_SWAP_COUNTS vs mv_dex_swap_amounts_daily=$DEX_DECODED_COUNTS"
 fi
 
-echo "7. Protocol DEX MV has expected swap volume..."
+echo "9. Protocol DEX MV has expected swap volume..."
 PROTOCOL_SWAPS=$(ch "SELECT sum(swaps) FROM ${CLICKHOUSE_DB}.mv_protocol_dex_daily")
 PROTOCOL_VOL=$(ch "SELECT round(sum(volume_raw)/1e6) FROM ${CLICKHOUSE_DB}.mv_protocol_dex_daily")
 if python3 -c "exit(0 if float('$PROTOCOL_SWAPS') >= 50000 and float('$PROTOCOL_VOL') >= 1000000 else 1)"; then
@@ -94,7 +110,7 @@ else
   fail "Protocol DEX MV looks low: swaps=$PROTOCOL_SWAPS volume=\$$PROTOCOL_VOL"
 fi
 
-echo "8. USDC.e all-time ERC-20 transfer volume..."
+echo "10. USDC.e all-time ERC-20 transfer volume..."
 USDCE_VOL=$(ch "SELECT round(sum(volume_raw)/1e6) FROM ${CLICKHOUSE_DB}.mv_erc20_volume_daily WHERE token='0x20c000000000000000000000b9537d11c60e8b50'")
 if python3 -c "exit(0 if float('$USDCE_VOL') >= 21000000 else 1)"; then
   pass "USDC.e all-time ERC-20 volume: \$$USDCE_VOL (>= \$21M)"
@@ -102,7 +118,7 @@ else
   fail "USDC.e ERC-20 volume too low: \$$USDCE_VOL - check mv_erc20_volume_daily"
 fi
 
-echo "9. NFT all-time transfer count..."
+echo "11. NFT all-time transfer count..."
 NFTS=$(ch "SELECT sum(transfers) FROM ${CLICKHOUSE_DB}.mv_nft_daily")
 if [ "$NFTS" -ge 100000 ]; then
   pass "Total NFT transfers: $NFTS (>= 100,000)"
