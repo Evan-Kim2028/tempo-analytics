@@ -68,7 +68,7 @@ export default async function DexPage() {
           Users pay gas fees in any verified stablecoin. At block settlement, the protocol auto-converts
           to the block validator&apos;s preferred token using a dedicated low-slippage AMM — no separate gas
           token needed. Designed by{' '}
-          <a href="https://www.paradigm.xyz/" className="text-tempo-blue hover:underline" target="_blank" rel="noopener">
+          <a href="https://www.paradigm.xyz/" className="text-tempo-blue hover:underline" target="_blank" rel="noopener noreferrer">
             Dan Robinson (Paradigm)↗
           </a>
           .
@@ -142,7 +142,7 @@ export default async function DexPage() {
         <p className="text-tempo-muted text-sm mb-6">
           Community-deployed Uniswap V2-compatible AMM pools. USD volume shown for pools
           with at least one{' '}
-          <a href="https://tokenlist.tempo.xyz" className="text-tempo-blue hover:underline" target="_blank" rel="noopener">
+          <a href="https://tokenlist.tempo.xyz" className="text-tempo-blue hover:underline" target="_blank" rel="noopener noreferrer">
             verified token ↗
           </a>
           .
