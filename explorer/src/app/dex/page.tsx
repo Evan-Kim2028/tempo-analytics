@@ -7,6 +7,7 @@ import {
 } from '@/lib/analytics'
 import { DexVolumeChart } from '@/components/charts/DexVolumeChart'
 import { FeeAmmChart } from '@/components/charts/FeeAmmChart'
+import { getProtocolDexTVL, getCommunityDexTVL } from '@/lib/defi'
 
 export const revalidate = 900
 
@@ -22,11 +23,13 @@ const fmtPct = (n: number, total: number) =>
   total > 0 ? `${((n / total) * 100).toFixed(1)}%` : '—'
 
 export default async function DexPage() {
-  const [feeDaily, protocolDaily, communityDaily, pools] = await Promise.all([
+  const [feeDaily, protocolDaily, communityDaily, pools, protocolTVL, communityTVL] = await Promise.all([
     getFeeTokenDailyStats(30),
     getProtocolDexDailyStats(30),
     getDexDailyVolumeUSD(30),
     getTopPools(10),
+    getProtocolDexTVL(),
+    getCommunityDexTVL(),
   ])
 
   // Fee AMM aggregates
@@ -114,7 +117,7 @@ export default async function DexPage() {
           Supports both orderbook-style settlement and constant-product AMM liquidity.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
             <p className="text-tempo-muted text-xs mb-1">30d Swaps</p>
             <p className="text-2xl font-semibold text-white">{fmtCount(protocolSwaps30d)}</p>
@@ -122,6 +125,11 @@ export default async function DexPage() {
           <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
             <p className="text-tempo-muted text-xs mb-1">30d Volume</p>
             <p className="text-2xl font-semibold text-white">{fmtUSD(protocolVol30d)}</p>
+          </div>
+          <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
+            <p className="text-tempo-muted text-xs mb-1">TVL</p>
+            <p className="text-2xl font-semibold text-white">{fmtUSD(protocolTVL)}</p>
+            <p className="text-tempo-muted text-xs mt-1">stablecoins held by precompile</p>
           </div>
         </div>
 
@@ -148,7 +156,7 @@ export default async function DexPage() {
           .
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
             <p className="text-tempo-muted text-xs mb-1">30d Volume (whitelisted pools)</p>
             <p className="text-2xl font-semibold text-white">{fmtUSD(communityVol30d)}</p>
@@ -156,6 +164,11 @@ export default async function DexPage() {
           <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
             <p className="text-tempo-muted text-xs mb-1">30d Swaps (all pools)</p>
             <p className="text-2xl font-semibold text-white">{fmtCount(communitySwaps30d)}</p>
+          </div>
+          <div className="bg-tempo-card border border-tempo-border rounded-lg p-5">
+            <p className="text-tempo-muted text-xs mb-1">TVL</p>
+            <p className="text-2xl font-semibold text-white">{fmtUSD(communityTVL)}</p>
+            <p className="text-tempo-muted text-xs mt-1">top 10 pools, stablecoin-side ×2</p>
           </div>
         </div>
 
