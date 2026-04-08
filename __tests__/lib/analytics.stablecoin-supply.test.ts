@@ -46,9 +46,9 @@ test('returns empty array when no rows returned', async () => {
 
 test('computes cumulative sum correctly for a single token', async () => {
   mockRows([
-    { day: '2026-01-01', token: PATHUSD, net_raw: String(2e18) },
-    { day: '2026-01-02', token: PATHUSD, net_raw: String(3e18) },
-    { day: '2026-01-03', token: PATHUSD, net_raw: String(-1e18) },
+    { day: '2026-01-01', token: PATHUSD, net_raw: String(2e6) },
+    { day: '2026-01-02', token: PATHUSD, net_raw: String(3e6) },
+    { day: '2026-01-03', token: PATHUSD, net_raw: String(-1e6) },
   ])
   const result = await getStablecoinSupplyHistory(30)
 
@@ -60,10 +60,10 @@ test('computes cumulative sum correctly for a single token', async () => {
 
 test('computes cumulative sum independently for both tokens', async () => {
   mockRows([
-    { day: '2026-01-01', token: PATHUSD, net_raw: String(10e18) },
-    { day: '2026-01-01', token: USDC_E,  net_raw: String(5e18)  },
-    { day: '2026-01-02', token: PATHUSD, net_raw: String(2e18)  },
-    { day: '2026-01-02', token: USDC_E,  net_raw: String(-1e18) },
+    { day: '2026-01-01', token: PATHUSD, net_raw: String(10e6) },
+    { day: '2026-01-01', token: USDC_E,  net_raw: String(5e6)  },
+    { day: '2026-01-02', token: PATHUSD, net_raw: String(2e6)  },
+    { day: '2026-01-02', token: USDC_E,  net_raw: String(-1e6) },
   ])
   const result = await getStablecoinSupplyHistory(30)
 
@@ -72,8 +72,8 @@ test('computes cumulative sum independently for both tokens', async () => {
   expect(result[1]).toMatchObject({ day: '2026-01-02', pathUSD: 12, usdc_e: 4 })
 })
 
-test('divides raw values by 1e18', async () => {
-  const oneToken = 1_000_000_000_000_000_000n  // 1e18
+test('divides raw values by 1e6', async () => {
+  const oneToken = 1_000_000n  // 1e6 (6-decimal stablecoin unit)
   mockRows([
     { day: '2026-01-01', token: PATHUSD, net_raw: String(oneToken) },
   ])
@@ -84,11 +84,11 @@ test('divides raw values by 1e18', async () => {
 test('returns only last `days` rows when history is longer', async () => {
   // Provide 5 days of data, request only 3
   mockRows([
-    { day: '2026-01-01', token: PATHUSD, net_raw: String(1e18) },
-    { day: '2026-01-02', token: PATHUSD, net_raw: String(1e18) },
-    { day: '2026-01-03', token: PATHUSD, net_raw: String(1e18) },
-    { day: '2026-01-04', token: PATHUSD, net_raw: String(1e18) },
-    { day: '2026-01-05', token: PATHUSD, net_raw: String(1e18) },
+    { day: '2026-01-01', token: PATHUSD, net_raw: String(1e6) },
+    { day: '2026-01-02', token: PATHUSD, net_raw: String(1e6) },
+    { day: '2026-01-03', token: PATHUSD, net_raw: String(1e6) },
+    { day: '2026-01-04', token: PATHUSD, net_raw: String(1e6) },
+    { day: '2026-01-05', token: PATHUSD, net_raw: String(1e6) },
   ])
   const result = await getStablecoinSupplyHistory(3)
 
@@ -103,9 +103,9 @@ test('returns only last `days` rows when history is longer', async () => {
 test('output is sorted by day ascending', async () => {
   // Rows arrive out of order (shouldn't happen in practice but guard against it)
   mockRows([
-    { day: '2026-01-03', token: PATHUSD, net_raw: String(1e18) },
-    { day: '2026-01-01', token: PATHUSD, net_raw: String(1e18) },
-    { day: '2026-01-02', token: PATHUSD, net_raw: String(1e18) },
+    { day: '2026-01-03', token: PATHUSD, net_raw: String(1e6) },
+    { day: '2026-01-01', token: PATHUSD, net_raw: String(1e6) },
+    { day: '2026-01-02', token: PATHUSD, net_raw: String(1e6) },
   ])
   const result = await getStablecoinSupplyHistory(30)
   const days = result.map(r => r.day)
@@ -133,9 +133,9 @@ test('returns cached result without hitting ClickHouse', async () => {
 test('days with no data for a token fill in as zero delta (cumsum unchanged)', async () => {
   // USDC.e only appears on day 1, day 2 has no row for it
   mockRows([
-    { day: '2026-01-01', token: PATHUSD, net_raw: String(1e18)  },
-    { day: '2026-01-01', token: USDC_E,  net_raw: String(10e18) },
-    { day: '2026-01-02', token: PATHUSD, net_raw: String(2e18)  },
+    { day: '2026-01-01', token: PATHUSD, net_raw: String(1e6)  },
+    { day: '2026-01-01', token: USDC_E,  net_raw: String(10e6) },
+    { day: '2026-01-02', token: PATHUSD, net_raw: String(2e6)  },
     // No USDC.e row on day 2 — supply should stay at 10
   ])
   const result = await getStablecoinSupplyHistory(30)

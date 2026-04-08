@@ -361,10 +361,12 @@ export async function getStablecoinSupplyHistory(days = 30): Promise<StablecoinS
     const usdcENet   = netByDayToken.get(`${day}:${USDC_E_ADDR}`)  ?? 0
     cumsumByToken.set(PATHUSD_ADDR, cumsumByToken.get(PATHUSD_ADDR)! + pathUSDNet)
     cumsumByToken.set(USDC_E_ADDR,  cumsumByToken.get(USDC_E_ADDR)!  + usdcENet)
+    // Number(r.net_raw) loses precision above 2^53, but cumulative supply values
+    // for these 6-decimal stablecoins are well within safe integer range.
     allPoints.push({
       day,
-      pathUSD: cumsumByToken.get(PATHUSD_ADDR)! / 1e18,
-      usdc_e:  cumsumByToken.get(USDC_E_ADDR)!  / 1e18,
+      pathUSD: cumsumByToken.get(PATHUSD_ADDR)! / 1e6,
+      usdc_e:  cumsumByToken.get(USDC_E_ADDR)!  / 1e6,
     })
   }
 

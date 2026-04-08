@@ -75,8 +75,8 @@ Replace `StablecoinTVLChart` (which shows volume, not TVL — a mislabeled dupli
 
 **View logic:**
 - Source table: `tidx_4217.logs`
-- Mints: Transfer events where `topic2` = zero address (`0x000…000`)
-- Burns: Transfer events where `topic3` = zero address
+- Mints: Transfer events where `topic1` = zero address (`0x000…000`) (from = zero)
+- Burns: Transfer events where `topic2` = zero address (to = zero)
 - Filter: whitelisted stablecoin addresses only (pathUSD + USDC.e initially; extensible)
 - Output columns: `day Date`, `token String`, `net_raw Int64` (mints minus burns in raw uint64 units)
 - Engine: `SummingMergeTree ORDER BY (day, token)`
@@ -84,7 +84,7 @@ Replace `StablecoinTVLChart` (which shows volume, not TVL — a mislabeled dupli
 **App-layer query (`getStablecoinSupplyHistory`):**
 - Fetch daily net changes for the last N days
 - Compute cumulative sum per token to derive supply at each day
-- Divide raw values by token decimals (18 for both pathUSD and USDC.e)
+- Divide raw values by token decimals (6 for both pathUSD and USDC.e)
 - Returns: `{ day: string, pathUSD: number, usdc_e: number }[]`
 
 **Chart:** Stacked area, same styling as existing charts. Y-axis in compact USD notation. Two series: pathUSD (green) and USDC.e (blue).
