@@ -1,7 +1,7 @@
 'use client'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend,
+  CartesianGrid, Tooltip,
 } from 'recharts'
 import type { FeeTokenAllDailyStat } from '@/lib/analytics'
 
@@ -63,7 +63,6 @@ export function FeeTokenAllChart({ data }: { data: FeeTokenAllDailyStat }) {
               return [fmtCount.format(v), token?.symbol ?? entry.dataKey]
             }}
           />
-          <Legend content={<></>} />
           {data.tokens.map((t, i) => (
             <Bar
               key={t.address}

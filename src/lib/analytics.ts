@@ -842,7 +842,7 @@ export async function getProtocolDexPools(days = 30): Promise<ProtocolDexPool[]>
       WHERE day >= today() - ${days}
       GROUP BY pool_id, token
       ORDER BY volume_raw DESC
-      LIMIT 100
+      LIMIT 30
     `),
     queryClickHouse<{ pool_id: string; token: string; dau_1d: string; dau_7d: string; dau_30d: string }>(`
       SELECT
