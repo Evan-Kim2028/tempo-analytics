@@ -1,4 +1,6 @@
-import { getStablecoinStats, getStablecoinDailyVolume } from '@/lib/analytics'
+import { getStablecoinStats, getStablecoinDailyVolume, getStablecoinSupplyHistory } from '@/lib/analytics'
+import { StablecoinSupplyChart } from '@/components/charts/StablecoinSupplyChart'
+import { StablecoinVolumeChart } from '@/components/charts/StablecoinVolumeChart'
 
 export const revalidate = 900
 
@@ -11,9 +13,10 @@ const fmtCount = (n: number) =>
   new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 
 export default async function StablecoinsPage() {
-  const [stats, daily] = await Promise.all([
+  const [stats, daily, supplyHistory] = await Promise.all([
     getStablecoinStats(),
     getStablecoinDailyVolume(30),
+    getStablecoinSupplyHistory(30),
   ])
 
   const totalSupply = stats.reduce((s, t) => s + (t.supply ?? 0), 0)
@@ -48,6 +51,26 @@ export default async function StablecoinsPage() {
           <p className="text-2xl font-semibold text-white">{fmtCount(totalXfers30d)}</p>
         </div>
       </div>
+
+      {/* Supply chart */}
+      {supplyHistory.length > 0 && (
+        <div className="bg-tempo-card border border-tempo-border rounded-lg p-6 mb-8">
+          <h2 className="text-base font-medium text-white mb-4">
+            Circulating Supply (30d)
+          </h2>
+          <StablecoinSupplyChart data={supplyHistory} />
+        </div>
+      )}
+
+      {/* Volume chart */}
+      {daily.length > 0 && (
+        <div className="bg-tempo-card border border-tempo-border rounded-lg p-6 mb-8">
+          <h2 className="text-base font-medium text-white mb-4">
+            Transfer Volume (30d)
+          </h2>
+          <StablecoinVolumeChart data={daily} />
+        </div>
+      )}
 
       {/* Stablecoin table */}
       <div className="bg-tempo-card border border-tempo-border rounded-lg overflow-hidden">
