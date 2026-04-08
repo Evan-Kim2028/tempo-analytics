@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createChallenge, verifyPayment } from '@/lib/mpp'
+import { Mppx, tempo } from 'mppx/server'
+import { server as solana } from 'mppx-solana'
 import { queryTidx } from '@/lib/tidx'
+
+// Protocol-level constants — these are well-known public contract addresses
+const TEMPO_USDC_E = '0x20C000000000000000000000b9537d11c60E8b50'
+const SOLANA_USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+const TEMPO_RECIPIENT = process.env.TEMPO_RECIPIENT_ADDRESS as `0x${string}` | undefined
+
+// $0.10 expressed in each token's native base units (both USDC, 6 decimals)
+const EXPORT_PRICE = '0.10'          // human-readable for tempo.charge (parseUnits internally)
+const EXPORT_PRICE_SOL = '100000'    // base units for mppx-solana (6 decimals → $0.10)
 
 const EXPORT_QUERIES: Record<string, string> = {
   'account-types': `
@@ -49,10 +59,24 @@ const EXPORT_QUERIES: Record<string, string> = {
     ORDER BY num DESC
     LIMIT 1000
   `,
+  'stablecoin-daily': `
+    SELECT day, token, symbol, volume_usd, transfers
+    FROM mv_stablecoin_daily
+    ORDER BY day DESC, volume_usd DESC
+  `,
+  'dex-daily': `
+    SELECT day, volume_usd, swap_count
+    FROM mv_dex_daily
+    ORDER BY day DESC
+  `,
+  'nft-activity': `
+    SELECT day, transfers, active_collections
+    FROM mv_nft_daily
+    ORDER BY day DESC
+  `,
 }
 
 function rowsToCsv(result: { columns?: string[]; rows: Record<string, string | number | null>[] }): string {
-  // Handle both shaped (TidxQueryResult) and raw column formats
   const columns = result.columns ?? Object.keys(result.rows[0] ?? {})
   const escape = (v: string | number | null): string => {
     if (v == null) return ''
@@ -66,6 +90,20 @@ function rowsToCsv(result: { columns?: string[]; rows: Record<string, string | n
   return `${header}\n${body}`
 }
 
+const mppx = Mppx.create({
+  methods: [
+    tempo.charge({
+      recipient: TEMPO_RECIPIENT,
+      currency: TEMPO_USDC_E,
+    }),
+    solana({
+      recipient: process.env.SOLANA_RECIPIENT_ADDRESS,
+      currency: SOLANA_USDC,
+      decimals: 6,
+    }),
+  ],
+})
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as { query?: string }
   const { query: queryKey } = body
@@ -74,25 +112,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unknown export query' }, { status: 400 })
   }
 
-  const paymentTxHash = req.headers.get('X-Payment')
+  const result = await mppx.compose(
+    [mppx.tempo.charge, { amount: EXPORT_PRICE }],
+    [mppx.solana.charge, { amount: EXPORT_PRICE_SOL, cluster: 'mainnet-beta' }],
+  )(req)
 
-  if (!paymentTxHash) {
-    return NextResponse.json({ challenge: createChallenge() }, { status: 402 })
-  }
+  if (result.status === 402) return result.challenge
 
-  const verification = await verifyPayment(paymentTxHash)
-  if (!verification.ok) {
-    return NextResponse.json({ error: verification.error, challenge: createChallenge() }, { status: 402 })
-  }
+  const data = await queryTidx(EXPORT_QUERIES[queryKey])
+  const csv = rowsToCsv(data)
 
-  const result = await queryTidx(EXPORT_QUERIES[queryKey])
-  const csv = rowsToCsv(result)
-
-  return new NextResponse(csv, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="tempo-${queryKey}.csv"`,
-    },
-  })
+  return result.withReceipt(
+    new Response(csv, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="tempo-${queryKey}.csv"`,
+      },
+    }),
+  )
 }
