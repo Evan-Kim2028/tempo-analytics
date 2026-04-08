@@ -40,7 +40,7 @@ export function decodeMemoHex(memoHex: string): {
     return { memo_hex: normalized, memo_text: null, memo_kind: 'opaque' }
   }
 
-  const text = bytes.toString('utf8').replace(/\0+$/g, '').trim()
+  const text = bytes.toString('utf8').replace(/\0+$/g, '')
   if (!text) {
     return { memo_hex: normalized, memo_text: null, memo_kind: 'empty' }
   }
