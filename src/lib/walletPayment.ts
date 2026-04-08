@@ -67,7 +67,27 @@ export async function payWithSolana(
   return sig
 }
 
-// payWithTempo — implemented in Task 4
-export async function payWithTempo(_request: TempoPaymentRequest): Promise<string> {
-  throw new Error('Not implemented')
+interface EIP1193Provider {
+  request(args: { method: string; params?: unknown[] }): Promise<unknown>
+}
+
+export async function payWithTempo(request: TempoPaymentRequest): Promise<string> {
+  const ethereum = (window as Window & { ethereum?: EIP1193Provider }).ethereum
+  if (!ethereum) throw new Error('No EVM wallet detected. Install MetaMask or Rabby.')
+
+  const accounts = await ethereum.request({ method: 'eth_requestAccounts' }) as string[]
+  const from = accounts[0]
+
+  // ABI-encode ERC-20 transfer(address to, uint256 amount)
+  // selector: keccak256("transfer(address,uint256)")[0:4] = 0xa9059cbb
+  const paddedTo     = request.recipient.toLowerCase().replace('0x', '').padStart(64, '0')
+  const paddedAmount = BigInt(request.amount).toString(16).padStart(64, '0')
+  const data = `0xa9059cbb${paddedTo}${paddedAmount}`
+
+  const hash = await ethereum.request({
+    method: 'eth_sendTransaction',
+    params: [{ from, to: request.currency, data }],
+  }) as string
+
+  return hash
 }

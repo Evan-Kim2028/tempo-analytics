@@ -75,3 +75,53 @@ test('payWithSolana creates recipient ATA when absent', async () => {
   // signTransaction was called — tx was built (can't easily inspect instructions in unit test)
   expect(wallet.signTransaction).toHaveBeenCalledTimes(1)
 })
+
+// ── payWithTempo ─────────────────────────────────────────────────────────────
+
+const MOCK_TX_HASH = '0xabc123def456abc123def456abc123def456abc123def456abc123def456abc1'
+
+function mockEthereum(hash = MOCK_TX_HASH) {
+  return {
+    request: jest.fn().mockImplementation(({ method }: { method: string }) => {
+      if (method === 'eth_requestAccounts') return Promise.resolve(['0xDeadBeef00000000000000000000000000000001'])
+      if (method === 'eth_sendTransaction') return Promise.resolve(hash)
+      return Promise.reject(new Error(`Unknown method: ${method}`))
+    }),
+  }
+}
+
+test('payWithTempo requests accounts then sends ERC-20 transfer', async () => {
+  const eth = mockEthereum()
+  Object.defineProperty(global, 'window', {
+    value: { ethereum: eth },
+    writable: true,
+  })
+
+  const hash = await payWithTempo({
+    recipient: '0xc8BDAEDEcB05001B5EC22D273393792274f59281',
+    amount: '100000',
+    currency: '0x20C000000000000000000000b9537d11c60E8b50',
+  })
+
+  expect(hash).toBe(MOCK_TX_HASH)
+  expect(eth.request).toHaveBeenCalledWith({ method: 'eth_requestAccounts' })
+  const sendCall = eth.request.mock.calls.find(
+    (c: [{ method: string }]) => c[0].method === 'eth_sendTransaction'
+  )
+  expect(sendCall).toBeDefined()
+  const txParams = sendCall[0].params[0]
+  expect(txParams.to).toBe('0x20C000000000000000000000b9537d11c60E8b50')
+  // data starts with transfer selector 0xa9059cbb
+  expect(txParams.data.startsWith('0xa9059cbb')).toBe(true)
+})
+
+test('payWithTempo throws if no EVM wallet detected', async () => {
+  Object.defineProperty(global, 'window', { value: {}, writable: true })
+  await expect(
+    payWithTempo({
+      recipient: '0xc8BDAEDEcB05001B5EC22D273393792274f59281',
+      amount: '100000',
+      currency: '0x20C000000000000000000000b9537d11c60E8b50',
+    })
+  ).rejects.toThrow('No EVM wallet detected')
+})
