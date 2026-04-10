@@ -5,12 +5,13 @@
 // tempo is a function with a .charge static method on the namespace.
 // Mppx is a namespace with a .create factory.
 const mockCompose = jest.fn(() =>
-  jest.fn().mockResolvedValue(
-    new Response(null, {
+  jest.fn().mockResolvedValue({
+    status: 402 as const,
+    challenge: new Response(null, {
       status: 402,
       headers: { 'WWW-Authenticate': 'Payment method="tempo/charge"' },
-    })
-  )
+    }),
+  })
 )
 
 jest.mock('mppx/server', () => ({
@@ -53,4 +54,18 @@ test('chargeHandler creates a new handler on each call (not cached)', () => {
   const h1 = chargeHandler(respond)
   const h2 = chargeHandler(respond)
   expect(h1).not.toBe(h2)
+})
+
+test('chargeHandler handler calls respond and returns withReceipt on 200', async () => {
+  const csvResponse = new Response('col\nval', { status: 200 })
+  const respond = jest.fn().mockResolvedValue(csvResponse)
+  const withReceipt = jest.fn((r: Response) => r)
+  ;(mockCompose as jest.Mock).mockReturnValueOnce(
+    jest.fn().mockResolvedValue({ status: 200 as const, withReceipt })
+  )
+  const handler = chargeHandler(respond)
+  const req = new Request('http://localhost/api/export', { method: 'POST' })
+  await handler(req)
+  expect(respond).toHaveBeenCalled()
+  expect(withReceipt).toHaveBeenCalledWith(csvResponse)
 })

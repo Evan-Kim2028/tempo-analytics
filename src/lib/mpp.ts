@@ -9,15 +9,16 @@ export function chargeHandler(respond: () => Promise<Response>) {
   const currency1 = process.env.PATH_USD_ADDRESS ?? ''
   const recipient  = process.env.PAYMENT_ADDRESS ?? ''
 
-  // Create a fresh method per call with the respond callback baked in.
-  // respond is a field on Method.Server (not a charge.Parameters key),
-  // so we set it on the returned method object.
   const method = tempo.charge({ getClient: () => publicClient })
-  method.respond = respond as typeof method.respond
   const server = Mppx.create({ methods: [method], realm: 'tempo-analytics' })
-
-  return server.compose(
+  const composed = server.compose(
     [method, { amount: AMOUNT, currency: currency0, recipient }],
     [method, { amount: AMOUNT, currency: currency1, recipient }],
   )
+
+  return async (req: Request): Promise<Response> => {
+    const result = await composed(req)
+    if (result.status === 402) return result.challenge
+    return result.withReceipt(await respond())
+  }
 }
