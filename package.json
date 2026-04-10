@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@shazow/whatsabi": "^0.26.0",
+    "mppx": "^0.5.11",
     "next": "15.3.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
