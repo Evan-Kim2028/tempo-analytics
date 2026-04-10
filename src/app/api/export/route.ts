@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createChallenge, verifyPayment } from '@/lib/mpp'
+import { chargeHandler } from '@/lib/mpp'
 import { queryTidx } from '@/lib/tidx'
 
 const EXPORT_QUERIES: Record<string, string> = {
@@ -70,29 +70,18 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as { query?: string }
   const { query: queryKey } = body
 
-  if (!queryKey || !EXPORT_QUERIES[queryKey]) {
+  if (!queryKey || !EXPORT_QUERIES[queryKey])
     return NextResponse.json({ error: 'Unknown export query' }, { status: 400 })
-  }
 
-  const paymentTxHash = req.headers.get('X-Payment')
-
-  if (!paymentTxHash) {
-    return NextResponse.json({ challenge: createChallenge() }, { status: 402 })
-  }
-
-  const verification = await verifyPayment(paymentTxHash)
-  if (!verification.ok) {
-    return NextResponse.json({ error: verification.error, challenge: createChallenge() }, { status: 402 })
-  }
-
-  const result = await queryTidx(EXPORT_QUERIES[queryKey])
-  const csv = rowsToCsv(result)
-
-  return new NextResponse(csv, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="tempo-${queryKey}.csv"`,
-    },
-  })
+  return chargeHandler(async () => {
+    const result = await queryTidx(EXPORT_QUERIES[queryKey])
+    const csv = rowsToCsv(result)
+    return new Response(csv, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="tempo-${queryKey}.csv"`,
+      },
+    })
+  })(req)
 }
