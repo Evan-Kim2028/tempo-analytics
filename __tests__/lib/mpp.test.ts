@@ -2,8 +2,6 @@
  * @jest-environment node
  */
 
-// tempo is a function with a .charge static method on the namespace.
-// Mppx is a namespace with a .create factory.
 const mockCompose = jest.fn(() =>
   jest.fn().mockResolvedValue({
     status: 402 as const,
@@ -49,7 +47,7 @@ test('chargeHandler handler returns 402 when called with no Authorization', asyn
   expect(res.headers.get('WWW-Authenticate')).not.toBeNull()
 })
 
-test('chargeHandler creates a new handler on each call (not cached)', () => {
+test('chargeHandler returns a distinct handler on each call', () => {
   const respond = jest.fn()
   const h1 = chargeHandler(respond)
   const h2 = chargeHandler(respond)

@@ -10,6 +10,15 @@ interface ExportButtonProps {
 
 type ExportState = 'idle' | 'awaiting_payment' | 'verifying' | 'downloading' | 'error'
 
+const CURRENCY_LABELS: Record<string, string> = {
+  [process.env.NEXT_PUBLIC_USDC_ADDRESS ?? '']: 'USDC.e',
+  [process.env.NEXT_PUBLIC_PATH_USD_ADDRESS ?? '']: 'pathUSD',
+}
+
+function currencyLabel(address: string): string {
+  return CURRENCY_LABELS[address] ?? `${address.slice(0, 6)}...${address.slice(-4)}`
+}
+
 export function ExportButton({ queryKey, label = 'Export CSV' }: ExportButtonProps) {
   const [state, setState] = useState<ExportState>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -121,7 +130,7 @@ export function ExportButton({ queryKey, label = 'Export CSV' }: ExportButtonPro
           <div className="flex gap-1 mb-3">
             {challenge.challenges.map((c, i) => {
               const addr = (c.request as { currency: string }).currency
-              const tabLabel = `${addr.slice(0, 6)}…${addr.slice(-4)}`
+              const tabLabel = currencyLabel(addr)
               return (
                 <button
                   key={i}
@@ -140,7 +149,7 @@ export function ExportButton({ queryKey, label = 'Export CSV' }: ExportButtonPro
         )}
 
         <p className="text-tempo-muted mb-1">
-          Send <strong className="text-white">{displayAmount} {`${currency.slice(0, 6)}…${currency.slice(-4)}`}</strong> to:
+          Send <strong className="text-white">{displayAmount} {currencyLabel(currency)}</strong> to:
         </p>
         <p className="font-mono text-xs text-tempo-blue break-all mb-4">{recipient}</p>
         <input
