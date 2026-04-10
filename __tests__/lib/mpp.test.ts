@@ -1,45 +1,56 @@
-import { createChallenge, verifyPayment } from '@/lib/mpp'
+/**
+ * @jest-environment node
+ */
 
-jest.mock('@/lib/cache', () => ({
-  getCached: jest.fn(),
-  setCached: jest.fn(),
+// tempo is a function with a .charge static method on the namespace.
+// Mppx is a namespace with a .create factory.
+const mockCompose = jest.fn(() =>
+  jest.fn().mockResolvedValue(
+    new Response(null, {
+      status: 402,
+      headers: { 'WWW-Authenticate': 'Payment method="tempo/charge"' },
+    })
+  )
+)
+
+jest.mock('mppx/server', () => ({
+  tempo: Object.assign(jest.fn(), {
+    charge: jest.fn((_opts: unknown) => ({ _tag: 'TempoChargeMethod' as const })),
+  }),
+  Mppx: {
+    create: jest.fn(() => ({
+      compose: mockCompose,
+    })),
+  },
 }))
 
-jest.mock('viem', () => ({
-  createPublicClient: jest.fn(() => ({
-    getTransactionReceipt: jest.fn(),
-  })),
-  http: jest.fn(),
-  parseUnits: jest.fn((_val: string, _decimals: number) => BigInt(100000)),
-  defineChain: jest.fn((config: unknown) => config),
-}))
+jest.mock('@/lib/chain', () => ({ publicClient: {} }))
 
-import { getCached, setCached } from '@/lib/cache'
+import { chargeHandler } from '@/lib/mpp'
 
-test('createChallenge returns required fields', () => {
-  process.env.PAYMENT_ADDRESS = '0x1234567890123456789012345678901234567890'
-  const challenge = createChallenge()
-  expect(challenge.price).toBe('0.10')
-  expect(challenge.currency).toBe('USDC')
-  expect(challenge.recipient).toBe(process.env.PAYMENT_ADDRESS)
-  expect(challenge.nonce).toHaveLength(32)
-  expect(typeof challenge.expires).toBe('number')
-  expect(challenge.expires).toBeGreaterThan(Date.now() / 1000)
+beforeEach(() => {
+  jest.clearAllMocks()
+  process.env.USDC_ADDRESS     = '0x0000000000000000000000000000000000000001'
+  process.env.PATH_USD_ADDRESS = '0x0000000000000000000000000000000000000002'
+  process.env.PAYMENT_ADDRESS  = '0x0000000000000000000000000000000000000003'
 })
 
-test('verifyPayment rejects already-used tx hash', async () => {
-  ;(getCached as jest.Mock).mockResolvedValue('used')
-  const result = await verifyPayment('0x' + 'a'.repeat(64))
-  expect(result.ok).toBe(false)
-  expect(result.error).toMatch(/already used/)
+test('chargeHandler returns a callable handler', () => {
+  const handler = chargeHandler(jest.fn())
+  expect(typeof handler).toBe('function')
 })
 
-test('verifyPayment returns error when PAYMENT_ADDRESS not configured', async () => {
-  ;(getCached as jest.Mock).mockResolvedValue(null)
-  const savedAddr = process.env.PAYMENT_ADDRESS
-  delete process.env.PAYMENT_ADDRESS
-  const result = await verifyPayment('0x' + 'b'.repeat(64))
-  expect(result.ok).toBe(false)
-  expect(result.error).toMatch(/not configured/)
-  process.env.PAYMENT_ADDRESS = savedAddr
+test('chargeHandler handler returns 402 when called with no Authorization', async () => {
+  const handler = chargeHandler(jest.fn())
+  const req = new Request('http://localhost/api/export', { method: 'POST' })
+  const res = await handler(req)
+  expect(res.status).toBe(402)
+  expect(res.headers.get('WWW-Authenticate')).not.toBeNull()
+})
+
+test('chargeHandler creates a new handler on each call (not cached)', () => {
+  const respond = jest.fn()
+  const h1 = chargeHandler(respond)
+  const h2 = chargeHandler(respond)
+  expect(h1).not.toBe(h2)
 })
