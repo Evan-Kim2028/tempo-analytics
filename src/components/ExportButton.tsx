@@ -29,6 +29,11 @@ export function ExportButton({ queryKey, label = 'Export CSV' }: ExportButtonPro
       })
       if (res.status === 402) {
         const challenges = Challenge.fromResponseList(res)
+        if (challenges.length === 0) {
+          setState('error')
+          setError('No payment options available')
+          return
+        }
         setChallenge({ challenges, selected: 0 })
         return
       }
@@ -63,13 +68,18 @@ export function ExportButton({ queryKey, label = 'Export CSV' }: ExportButtonPro
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `${serialized}`,
+          'Authorization': serialized,
         },
         body: JSON.stringify({ query: queryKey }),
       })
       if (res.status === 402) {
         const newChallenges = Challenge.fromResponseList(res)
-        setChallenge({ challenges: newChallenges, selected: challenge.selected })
+        if (newChallenges.length === 0) {
+          setState('error')
+          setError('No payment options available')
+          return
+        }
+        setChallenge({ challenges: newChallenges, selected: Math.min(challenge.selected, newChallenges.length - 1) })
         setState('awaiting_payment')
         setError('Payment verification failed — please try again')
         return
@@ -163,10 +173,10 @@ export function ExportButton({ queryKey, label = 'Export CSV' }: ExportButtonPro
   return (
     <button
       onClick={handleExport}
-      disabled={state === 'verifying' || state === 'downloading'}
+      disabled={state === 'awaiting_payment' || state === 'verifying' || state === 'downloading'}
       className="text-sm text-tempo-muted hover:text-white border border-tempo-border hover:border-tempo-blue rounded px-3 py-1.5 transition-colors disabled:opacity-50"
     >
-      {state === 'verifying' ? 'Verifying…' : state === 'downloading' ? 'Downloading…' : label}
+      {state === 'awaiting_payment' && !challenge ? 'Loading…' : state === 'verifying' ? 'Verifying…' : state === 'downloading' ? 'Downloading…' : label}
     </button>
   )
 }
