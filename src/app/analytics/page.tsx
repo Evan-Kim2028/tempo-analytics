@@ -1,4 +1,5 @@
 import { AnalyticsNarrative } from '@/components/analytics/AnalyticsNarrative'
+import { ExportButton } from '@/components/ExportButton'
 import {
   getFeeTokenMixByDay,
   getSponsorConcentrationByDay,
@@ -37,9 +38,12 @@ export default async function AnalyticsPage() {
               Tempo transaction adoption, fee behavior, sponsors, and passkey activity
             </p>
           </div>
-          <span className="inline-flex items-center rounded-full border border-tempo-border bg-tempo-card px-3 py-1 text-xs text-tempo-muted">
-            Updates every 15 min · Mainnet data
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center rounded-full border border-tempo-border bg-tempo-card px-3 py-1 text-xs text-tempo-muted">
+              Updates every 15 min · Mainnet data
+            </span>
+            <ExportButton queryKey="fee-tokens" label="Export" />
+          </div>
         </div>
       </header>
 
