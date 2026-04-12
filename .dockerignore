@@ -1,8 +1,17 @@
 node_modules
 .next
+**/node_modules
+**/.next
+**/coverage
+**/*.tsbuildinfo
 .env*
 .git
 *.md
 __tests__
 jest.config.ts
 jest.setup.ts
+tests
+docs
+sql
+scripts
+explorer

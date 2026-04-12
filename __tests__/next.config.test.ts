@@ -1,7 +1,8 @@
 import nextConfig from '../next.config'
 
 describe('next config', () => {
-  it('transpiles TypeScript-only runtime dependencies used by the export route', () => {
-    expect(nextConfig.transpilePackages).toContain('mppx-solana')
+  it('marks mppx and @solana/mpp as server-external packages', () => {
+    expect(nextConfig.serverExternalPackages).toContain('mppx')
+    expect(nextConfig.serverExternalPackages).toContain('@solana/mpp')
   })
 })

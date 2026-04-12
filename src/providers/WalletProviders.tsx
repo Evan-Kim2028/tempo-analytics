@@ -1,22 +1,36 @@
 'use client'
 
-import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react'
-import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets'
-import { useMemo } from 'react'
+import { SelectedWalletAccountContextProvider } from '@solana/react'
+import type { UiWallet } from '@wallet-standard/react'
 
-const SOLANA_RPC = process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? 'https://api.mainnet-beta.solana.com'
+const STORAGE_KEY = 'tempo-analytics:selected-wallet'
+
+function filterWallets(wallet: UiWallet): boolean {
+  return wallet.chains.some((chain) =>
+    chain === 'solana:mainnet-beta' || chain === 'solana:mainnet'
+  )
+}
+
+const stateSync = {
+  getSelectedWallet(): string | null {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem(STORAGE_KEY)
+  },
+  storeSelectedWallet(walletName: string): void {
+    localStorage.setItem(STORAGE_KEY, walletName)
+  },
+  deleteSelectedWallet(): void {
+    localStorage.removeItem(STORAGE_KEY)
+  },
+}
 
 export function WalletProviders({ children }: { children: React.ReactNode }) {
-  const wallets = useMemo(
-    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
-    []
-  )
-
   return (
-    <ConnectionProvider endpoint={SOLANA_RPC}>
-      <WalletProvider wallets={wallets} autoConnect>
-        {children}
-      </WalletProvider>
-    </ConnectionProvider>
+    <SelectedWalletAccountContextProvider
+      filterWallets={filterWallets}
+      stateSync={stateSync}
+    >
+      {children}
+    </SelectedWalletAccountContextProvider>
   )
 }

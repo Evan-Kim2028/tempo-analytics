@@ -10,6 +10,8 @@ export async function queryClickHouse<T = Record<string, unknown>>(sql: string):
   const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) {
     const err = await res.text()
+    // Code 60 = Unknown table — materialized view not yet created during backfill
+    if (err.includes('Code: 60') || err.includes('Unknown table')) return []
     throw new Error(`ClickHouse error: ${err.slice(0, 200)}`)
   }
   const data = await res.json()

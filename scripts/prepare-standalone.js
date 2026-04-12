@@ -31,4 +31,57 @@ async function prepareStandaloneAssets(rootDir) {
   }
 }
 
-module.exports = { prepareStandaloneAssets }
+async function resolveStandaloneEnvFile(rootDir) {
+  const candidates = ['.env.local', '.env']
+
+  for (const name of candidates) {
+    const candidate = join(rootDir, name)
+    if (await pathExists(candidate)) return candidate
+  }
+
+  throw new Error(
+    `No standalone env file found in ${rootDir}; expected one of: ${candidates.join(', ')}`
+  )
+}
+
+async function resolveStandaloneServerEntry(rootDir) {
+  const serverEntry = join(rootDir, '.next', 'standalone', 'server.js')
+  if (await pathExists(serverEntry)) return serverEntry
+
+  throw new Error(
+    `Standalone server build is missing at ${serverEntry}; run \`npm run build\` first`
+  )
+}
+
+async function resolveManagedStartSpec(rootDir, options = {}) {
+  const nodeExecutable = options.nodeExecutable ?? process.execPath
+  const port = String(options.port ?? process.env.PORT ?? '3001')
+
+  const envFile = await resolveStandaloneEnvFile(rootDir).catch(() => null)
+  const serverEntry = await resolveStandaloneServerEntry(rootDir).catch(() => null)
+  if (envFile && serverEntry) {
+    return {
+      mode: 'standalone',
+      command: nodeExecutable,
+      args: ['--env-file', envFile, serverEntry],
+    }
+  }
+
+  const nextCli = join(rootDir, 'node_modules', 'next', 'dist', 'bin', 'next')
+  if (!(await pathExists(nextCli))) {
+    throw new Error(`Next.js CLI is missing at ${nextCli}; run \`npm install\` first`)
+  }
+
+  return {
+    mode: 'dev',
+    command: nodeExecutable,
+    args: [nextCli, 'dev', '--hostname', '0.0.0.0', '--port', port],
+  }
+}
+
+module.exports = {
+  prepareStandaloneAssets,
+  resolveManagedStartSpec,
+  resolveStandaloneEnvFile,
+  resolveStandaloneServerEntry,
+}

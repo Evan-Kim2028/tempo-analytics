@@ -16,9 +16,8 @@ const config: Config = {
   },
   modulePathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/.worktrees/'],
   testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.next/', '<rootDir>/__tests__/helpers/'],
-  // mppx-solana ships TypeScript source only — let Next.js SWC transform it
   // uuid ships ESM browser build as its default export — must be transformed too
-  transformIgnorePatterns: ['/node_modules/(?!(mppx-solana|uuid)/)'],
+  transformIgnorePatterns: ['/node_modules/(?!(uuid)/)'],
 }
 
 export default createJestConfig(config)
