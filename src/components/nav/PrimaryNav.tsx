@@ -5,6 +5,7 @@ const primaryTabs = [
   { href: '/bridges', label: 'Bridges' },
   { href: '/payments', label: 'Payments' },
   { href: '/nfts', label: 'NFTs' },
+  { href: '/developers', label: 'Developers' },
 ]
 
 export function PrimaryNav() {
