@@ -83,6 +83,7 @@ function formatAddress(address: string | null | undefined, method: string): stri
 
 function classifyPaymentError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e)
+  console.error('[payment error]', msg)
   if (/5663009/i.test(msg) || /missing signature/i.test(msg)) {
     return 'Transaction could not be signed — the recipient token account may not be initialized. Use the manual payment option below, or try again shortly.'
   }
@@ -107,8 +108,13 @@ function classifyPaymentError(e: unknown): string {
   if (/simulation failed/i.test(msg) || /transaction failed/i.test(msg)) {
     return 'Transaction simulation failed — use the manual payment option below.'
   }
-  if (/Solana error #\d+/i.test(msg)) {
-    return 'Solana transaction error — use the manual payment option below.'
+  // RPC HTTP error (rate limit, CORS, server error)
+  if (/8100002/i.test(msg) || /http error/i.test(msg)) {
+    return 'Solana RPC error — please try again in a moment.'
+  }
+  const codeMatch = msg.match(/Solana error #(\d+)/)
+  if (codeMatch) {
+    return `Solana error #${codeMatch[1]}. Check browser console for details, or use the manual payment option.`
   }
   return msg || 'Payment failed'
 }

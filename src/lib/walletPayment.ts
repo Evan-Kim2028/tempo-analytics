@@ -6,7 +6,7 @@ import type { TransactionSigner } from '@solana/kit'
 
 export function createSolanaMppxClient(signer: TransactionSigner) {
   return Mppx.create({
-    methods: [solana.charge({ signer, broadcast: true })],
+    methods: [solana.charge({ signer, broadcast: true, rpcUrl: '/api/solana-rpc' })],
     polyfill: false,
   })
 }
