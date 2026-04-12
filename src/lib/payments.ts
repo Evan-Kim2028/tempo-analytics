@@ -265,17 +265,14 @@ function buildRawPaymentsSourceQuery(days: number, statuses: PaymentStatus[] = [
   if (statuses.includes('failed')) {
     sources.push(...PAYMENT_METHODS.map(method => `
       SELECT
-        toDate(txs.block_timestamp) AS day,
-        lower(txs.from) AS sender,
-        lower(concat('0x', substr(txs.input, 35, 40))) AS recipient,
+        day,
+        sender,
+        recipient,
         0.0 AS amount,
         'failed' AS status
-      FROM txs
-      LEFT JOIN receipts ON receipts.tx_hash = txs.hash
-      WHERE txs.block_timestamp >= now() - INTERVAL ${days} DAY
-        AND startsWith(lower(txs.input), '${method.call_selector}')
-        AND lower(txs.to) = '${method.token}'
-        AND (receipts.status = 0 OR receipts.status = '0')
+      FROM mv_memo_payments_failed_actors
+      WHERE day >= today() - ${days}
+        AND token = '${method.token}'
     `))
   }
 
@@ -317,6 +314,7 @@ async function fetchFailedPaymentRows(days: number): Promise<RawPaymentRow[]> {
   return queryClickHouse<RawPaymentRow>(`
     ${buildFailedPaymentsQuery(days)}
     ORDER BY block_timestamp DESC
+    LIMIT 100
   `)
 }
 
@@ -513,12 +511,15 @@ export async function getPaymentsSummary(days = 30): Promise<PaymentsSummaryStat
 }
 
 export async function getPaymentsPageData(): Promise<PaymentsPageData> {
-  const summary = await getPaymentsSummary()
-  const daily = await getPaymentsDaily()
-  const recent = await getRecentPayments()
-  const topRecipientsByAmount = await getTopCounterparties('recipient', 'amount')
-  const topRecipientsByCount = await getTopCounterparties('recipient', 'count')
-  const topSenders = await getTopCounterparties('sender', 'count')
+  const [summary, daily, recent, topRecipientsByAmount, topRecipientsByCount, topSenders] =
+    await Promise.all([
+      getPaymentsSummary(),
+      getPaymentsDaily(),
+      getRecentPayments(),
+      getTopCounterparties('recipient', 'amount'),
+      getTopCounterparties('recipient', 'count'),
+      getTopCounterparties('sender', 'count'),
+    ])
 
   return {
     summary,

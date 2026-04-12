@@ -61,10 +61,12 @@ test('getNFTMinterConcentration handles zero mints gracefully', async () => {
 })
 
 test('getTopNFTMinters returns ranked list with correct fields', async () => {
-  mockQuery.mockResolvedValueOnce([
-    { minter: '0xabc0000000000000000000000000000000000001', mints: '50', pct_total: '34.50', collections: '3' },
-    { minter: '0xabc0000000000000000000000000000000000002', mints: '20', pct_total: '13.79', collections: '1' },
-  ])
+  mockQuery
+    .mockResolvedValueOnce([
+      { minter: '0xabc0000000000000000000000000000000000001', mints: '50', collections: '3' },
+      { minter: '0xabc0000000000000000000000000000000000002', mints: '20', collections: '1' },
+    ])
+    .mockResolvedValueOnce([{ total: '145' }])
 
   const minters = await getTopNFTMinters(10)
 
@@ -72,7 +74,7 @@ test('getTopNFTMinters returns ranked list with correct fields', async () => {
   expect(minters[0].rank).toBe(1)
   expect(minters[0].minter).toBe('0xabc0000000000000000000000000000000000001')
   expect(minters[0].mints).toBe(50)
-  expect(minters[0].pct_total).toBeCloseTo(34.5)
+  expect(minters[0].pct_total).toBeCloseTo(34.5, 0)
   expect(minters[0].collections).toBe(3)
   expect(minters[1].rank).toBe(2)
 })

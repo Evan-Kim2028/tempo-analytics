@@ -36,7 +36,7 @@ const TIDX_URL = process.env.TIDX_URL ?? 'http://localhost:8080'
 const CHAIN_ID = '4217'
 
 export async function queryTidx(sql: string): Promise<TidxQueryResult> {
-  const url = `${TIDX_URL}/query?sql=${encodeURIComponent(sql)}&chainId=${CHAIN_ID}`
+  const url = `${TIDX_URL}/query?sql=${encodeURIComponent(sql.trim().replace(/\s+/g, ' '))}&chainId=${CHAIN_ID}`
   const res = await fetch(url, { cache: 'no-store' })
   const data = await res.json()
   if (!data.ok) throw new Error(data.error ?? 'tidx query failed')

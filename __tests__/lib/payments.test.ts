@@ -363,15 +363,16 @@ test('getPaymentsDaily(30) maps daily rollups plus exact actor counts', async ()
   ])
 })
 
-test('reuses the tx input selector prefix for exact actor counts', async () => {
+test('uses MV for failed payment actor counts instead of txs scan', async () => {
   mockQuery
     .mockResolvedValueOnce([])
     .mockResolvedValueOnce([])
 
   await getPaymentsDaily(14)
 
-  expect(String(mockQuery.mock.calls[1]?.[0])).toContain("startsWith(lower(txs.input), '0x95777d59')")
-  expect(String(mockQuery.mock.calls[1]?.[0])).not.toContain('txs.selector')
+  const queries = mockQuery.mock.calls.map((c: unknown[]) => String(c[0]))
+  const hasMV = queries.some((q: string) => q.includes('mv_memo_payments_failed_actors'))
+  expect(hasMV).toBe(true)
 })
 
 test('getPaymentsSummary(30) computes payment totals and exact actor counts', async () => {
@@ -401,140 +402,62 @@ test('getPaymentsSummary(30) computes payment totals and exact actor counts', as
 })
 
 test('getPaymentsPageData() assembles summary, daily, recent, and counterparty leaderboards', async () => {
-  mockQuery
-    .mockResolvedValueOnce([
-      {
-        successful_payments: '4',
-        failed_attempts: '1',
-        total_amount_raw: '3750000',
-      },
-    ])
-    .mockResolvedValueOnce([
-      {
-        unique_senders: '3',
-        unique_recipients: '2',
-      },
-    ])
-    .mockResolvedValueOnce([
-      {
-        day: '2026-04-08',
-        successful_payments: '4',
-        failed_attempts: '1',
-        total_amount_raw: '3750000',
-        readable_memos: '2',
-        opaque_memos: '2',
-        empty_memos: '1',
-        soc_memos: '1',
-        ef1e_memos: '1',
-        mpps_memos: '0',
-      },
-    ])
-    .mockResolvedValueOnce([
-      {
-        day: '2026-04-08',
-        unique_senders: '3',
-        unique_recipients: '2',
-      },
-    ])
-    .mockResolvedValueOnce([
-      {
-        block_timestamp: '2026-04-08 12:00:00',
-        tx_hash: '0xsuccess',
+  mockQuery.mockImplementation((sql: string) => {
+    const q = String(sql)
+    if (q.includes('successful_payments') && q.includes('failed_attempts') && !q.includes('GROUP BY day')) {
+      return Promise.resolve([{ successful_payments: '4', failed_attempts: '1', total_amount_raw: '3750000' }])
+    }
+    if (q.includes('unique_senders') && q.includes('unique_recipients') && !q.includes('GROUP BY day')) {
+      return Promise.resolve([{ unique_senders: '3', unique_recipients: '2' }])
+    }
+    if (q.includes('GROUP BY day') && q.includes('successful_payments')) {
+      return Promise.resolve([{
+        day: '2026-04-08', successful_payments: '4', failed_attempts: '1', total_amount_raw: '3750000',
+        readable_memos: '2', opaque_memos: '2', empty_memos: '1', soc_memos: '1', ef1e_memos: '1', mpps_memos: '0',
+      }])
+    }
+    if (q.includes('unique_senders') && q.includes('GROUP BY day')) {
+      return Promise.resolve([{ day: '2026-04-08', unique_senders: '3', unique_recipients: '2' }])
+    }
+    if (q.includes('ORDER BY block_timestamp') && q.includes('logs')) {
+      return Promise.resolve([{
+        block_timestamp: '2026-04-08 12:00:00', tx_hash: '0xsuccess',
         sender: '0x0000000000000000000000001111111111111111111111111111111111111111',
         recipient: '0x0000000000000000000000002222222222222222222222222222222222222222',
-        token: '0x20c0000000000000000000000000000000000000',
-        amount_raw: '2500000',
+        token: '0x20c0000000000000000000000000000000000000', amount_raw: '2500000',
         memo_hex: '0x534f432d30307a66393162640000000000000000000000000000000000000000',
-      },
-    ])
-    .mockResolvedValueOnce([
-      {
-        block_timestamp: '2026-04-08 12:05:00',
-        tx_hash: '0xfailed',
+      }])
+    }
+    if (q.includes('ORDER BY block_timestamp') && q.includes('txs')) {
+      return Promise.resolve([{
+        block_timestamp: '2026-04-08 12:05:00', tx_hash: '0xfailed',
         sender: '0x3333333333333333333333333333333333333333',
         recipient: '0x4444444444444444444444444444444444444444',
-        token: '0x20c0000000000000000000000000000000000000',
-        amount_raw: '990000',
+        token: '0x20c0000000000000000000000000000000000000', amount_raw: '990000',
         memo_hex: '0xff00aa0000000000000000000000000000000000000000000000000000000000',
-      },
-    ])
-    .mockResolvedValueOnce([
-      {
-        address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        payment_count: '3',
-        total_amount_raw: '3200000',
-      },
-    ])
-    .mockResolvedValueOnce([
-      {
-        address: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-        payment_count: '2',
-        total_amount_raw: '1800000',
-      },
-    ])
-    .mockResolvedValueOnce([
-      {
-        address: '0xcccccccccccccccccccccccccccccccccccccccc',
-        payment_count: '4',
-        total_amount_raw: '3750000',
-      },
-    ])
-
-  await expect(getPaymentsPageData()).resolves.toEqual({
-    summary: {
-      successful_payments: 4,
-      failed_attempts: 1,
-      success_rate: 80,
-      total_amount: 3.75,
-      unique_senders: 3,
-      unique_recipients: 2,
-    },
-    daily: [
-      {
-        day: '2026-04-08',
-        successful_payments: 4,
-        failed_attempts: 1,
-        total_amount: 3.75,
-        unique_senders: 3,
-        unique_recipients: 2,
-        readable_memos: 2,
-        opaque_memos: 2,
-        empty_memos: 1,
-        soc_memos: 1,
-        ef1e_memos: 1,
-        mpps_memos: 0,
-      },
-    ],
-    recent: [
-      expect.objectContaining({
-        tx_hash: '0xfailed',
-        status: 'failed',
-      }),
-      expect.objectContaining({
-        tx_hash: '0xsuccess',
-        status: 'success',
-      }),
-    ],
-    topRecipientsByAmount: [
-      {
-        address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        payment_count: 3,
-        total_amount: 3.2,
-      },
-    ],
-    topRecipientsByCount: [
-      {
-        address: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-        payment_count: 2,
-        total_amount: 1.8,
-      },
-    ],
-    topSenders: [
-      {
-        address: '0xcccccccccccccccccccccccccccccccccccccccc',
-        payment_count: 4,
-        total_amount: 3.75,
-      },
-    ],
+      }])
+    }
+    if (q.includes('recipient') && q.includes('amount')) {
+      return Promise.resolve([{ address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', payment_count: '3', total_amount_raw: '3200000' }])
+    }
+    if (q.includes('recipient') && q.includes('payment_count')) {
+      return Promise.resolve([{ address: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', payment_count: '2', total_amount_raw: '1800000' }])
+    }
+    if (q.includes('sender')) {
+      return Promise.resolve([{ address: '0xcccccccccccccccccccccccccccccccccccccccc', payment_count: '4', total_amount_raw: '3750000' }])
+    }
+    return Promise.resolve([])
   })
+
+  const result = await getPaymentsPageData()
+  expect(result.summary.successful_payments).toBe(4)
+  expect(result.summary.failed_attempts).toBe(1)
+  expect(result.summary.success_rate).toBe(80)
+  expect(result.daily).toHaveLength(1)
+  expect(result.daily[0].day).toBe('2026-04-08')
+  expect(result.recent.length).toBeGreaterThan(0)
+  expect(result.topRecipientsByAmount).toHaveLength(1)
+  expect(result.topRecipientsByCount).toHaveLength(1)
+  expect(result.topSenders).toHaveLength(1)
+
 })

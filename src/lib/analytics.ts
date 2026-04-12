@@ -984,28 +984,29 @@ export async function getTopNFTMinters(limit = 50): Promise<TopNFTMinter[]> {
   const cached = await getCached<TopNFTMinter[]>(key)
   if (cached) return cached
 
-  const rows = await queryClickHouse<{
-    minter: string; mints: string; pct_total: string; collections: string
-  }>(`
-    SELECT
-      '0x' || substring(topic2, 27)                          AS minter,
-      count()                                                AS mints,
-      round(count() * 100.0 / (
-        SELECT count() FROM logs WHERE ${NFT_MINT_FILTER}
-      ), 2)                                                  AS pct_total,
-      uniq(address)                                          AS collections
-    FROM logs
-    WHERE ${NFT_MINT_FILTER}
-    GROUP BY topic2
-    ORDER BY mints DESC
-    LIMIT ${limit}
-  `)
+  const [rows, totalRows] = await Promise.all([
+    queryClickHouse<{ minter: string; mints: string; collections: string }>(`
+      SELECT
+        '0x' || substring(topic2, 27) AS minter,
+        count()                       AS mints,
+        uniq(address)                 AS collections
+      FROM logs
+      WHERE ${NFT_MINT_FILTER}
+      GROUP BY topic2
+      ORDER BY mints DESC
+      LIMIT ${limit}
+    `),
+    queryClickHouse<{ total: string }>(`
+      SELECT count() AS total FROM logs WHERE ${NFT_MINT_FILTER}
+    `),
+  ])
 
+  const total = Number(totalRows[0]?.total ?? 0)
   const result: TopNFTMinter[] = rows.map((r, i) => ({
     rank:        i + 1,
     minter:      r.minter,
     mints:       Number(r.mints),
-    pct_total:   Number(r.pct_total),
+    pct_total:   total > 0 ? Math.round(Number(r.mints) * 1000 / total) / 10 : 0,
     collections: Number(r.collections),
   }))
 

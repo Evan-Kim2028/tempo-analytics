@@ -21,9 +21,8 @@ export default async function NFTsPage() {
     getTopNFTMinters(50),
   ])
 
-  // Resolve collection names (best-effort)
   const collectionNames = await Promise.all(
-    collections.map(c => getTokenInfo(c.collection))
+    collections.map(c => getTokenInfo(c.collection, { skipRPC: true }))
   )
 
   const totalTransfers30d = daily.reduce((s, d) => s + d.transfers, 0)

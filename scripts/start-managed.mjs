@@ -4,15 +4,15 @@ import path from 'path'
 
 import standaloneModule from './prepare-standalone.js'
 
-const { prepareStandaloneAssets } = standaloneModule
+const { resolveManagedStartSpec } = standaloneModule
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const spec = await resolveManagedStartSpec(rootDir, {
+  nodeExecutable: process.execPath,
+  port: process.env.PORT ?? '3001',
+})
 
-await prepareStandaloneAssets(rootDir)
-
-const envFile = await standaloneModule.resolveStandaloneEnvFile(rootDir)
-const serverEntry = await standaloneModule.resolveStandaloneServerEntry(rootDir)
-const child = spawn(process.execPath, ['--env-file', envFile, serverEntry], {
+const child = spawn(spec.command, spec.args, {
   cwd: rootDir,
   env: process.env,
   stdio: 'inherit',
