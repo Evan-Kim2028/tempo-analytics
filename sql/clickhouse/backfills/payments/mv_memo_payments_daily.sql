@@ -1,6 +1,11 @@
--- sql/clickhouse/backfills/payments/mv_memo_payments_daily.sql
--- Backfill for tidx_4217.mv_memo_payments_daily
--- Apply after sql/clickhouse/views/payments/mv_memo_payments_daily.sql
+-- @name:         mv_memo_payments_daily
+-- @domain:       payments
+-- @kind:         backfill
+-- @purpose:      Historical backfill for mv_memo_payments_daily.
+-- @pairs:        sql/clickhouse/views/payments/mv_memo_payments_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 INSERT INTO tidx_4217.mv_memo_payments_daily
 SELECT

@@ -1,6 +1,11 @@
--- sql/clickhouse/backfills/chain/mv_daily_stats.sql
--- Backfill for tidx_4217.mv_daily_stats
--- Apply after sql/clickhouse/views/chain/mv_daily_stats.sql
+-- @name:         mv_daily_stats
+-- @domain:       chain
+-- @kind:         backfill
+-- @purpose:      Historical backfill for mv_daily_stats.
+-- @pairs:        sql/clickhouse/views/chain/mv_daily_stats.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 INSERT INTO tidx_4217.mv_daily_stats
 SELECT

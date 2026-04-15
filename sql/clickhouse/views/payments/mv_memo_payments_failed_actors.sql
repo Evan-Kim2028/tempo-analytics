@@ -1,6 +1,13 @@
--- Failed payment actor aggregation (sender/recipient pairs by day).
--- Replaces the slow txs JOIN receipts scan used by getTopCounterparties
--- and getPaymentActorsByDay for the "failed" status branch.
+-- @name:         mv_memo_payments_failed_actors
+-- @domain:       payments
+-- @kind:         materialized_view
+-- @purpose:      Failed payment actor aggregation (sender/recipient pairs by day).
+-- @upstream:     tidx_4217.receipts, tidx_4217.txs
+-- @consumers:    src/app/payments/page.tsx, src/lib/payments.ts
+-- @backfill:     none
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 CREATE TABLE IF NOT EXISTS tidx_4217.mv_memo_payments_failed_actors
 (

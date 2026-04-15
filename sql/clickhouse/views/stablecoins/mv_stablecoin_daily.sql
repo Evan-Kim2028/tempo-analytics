@@ -1,9 +1,13 @@
--- sql/clickhouse/views/stablecoins/mv_stablecoin_daily.sql
--- Domain: stablecoins — daily transfer volume for whitelisted stablecoins
--- Tracks pathUSD (0x20c0...0000) and USDC.e (0x20c0...b9537d11c60e8b50) only
--- volume_u6: raw uint256 lo-64 (divide by 1e6 for USD — both tokens have decimals=6)
--- topic3 IS NULL: distinguishes ERC-20 Transfer from ERC-721 Transfer
--- Apply with scripts/apply-clickhouse-assets.sh
+-- @name:         mv_stablecoin_daily
+-- @domain:       stablecoins
+-- @kind:         materialized_view
+-- @purpose:      Daily transfer volume for whitelisted stablecoins (pathUSD and USDC.e)
+-- @upstream:     tidx_4217.logs
+-- @consumers:    src/app/analytics/page.tsx, src/app/stablecoins/page.tsx, src/lib/analytics.ts
+-- @backfill:     sql/clickhouse/backfills/stablecoins/mv_stablecoin_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 CREATE TABLE IF NOT EXISTS tidx_4217.mv_stablecoin_daily
 (

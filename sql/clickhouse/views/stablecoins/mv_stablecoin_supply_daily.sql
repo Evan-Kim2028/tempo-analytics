@@ -1,10 +1,13 @@
--- sql/clickhouse/views/stablecoins/mv_stablecoin_supply_daily.sql
--- Domain: stablecoins — daily net supply change per whitelisted stablecoin
--- Mints: Transfer from zero address (topic1 = 32-byte zero-padded)
--- Burns: Transfer to zero address (topic2 = 32-byte zero-padded)
--- topic3 IS NULL: distinguishes ERC-20 Transfer from ERC-721 Transfer
--- net_raw: Int64 mints_raw - burns_raw (lo-64 of uint256; divide by 1e6 for USD)
--- Apply with scripts/apply-clickhouse-assets.sh
+-- @name:         mv_stablecoin_supply_daily
+-- @domain:       stablecoins
+-- @kind:         materialized_view
+-- @purpose:      Daily net supply change per whitelisted stablecoin (mints minus burns)
+-- @upstream:     tidx_4217.logs
+-- @consumers:    src/app/stablecoins/page.tsx, src/lib/analytics.ts
+-- @backfill:     sql/clickhouse/backfills/stablecoins/mv_stablecoin_supply_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 CREATE TABLE IF NOT EXISTS tidx_4217.mv_stablecoin_supply_daily
 (

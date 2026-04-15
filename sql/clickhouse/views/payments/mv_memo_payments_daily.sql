@@ -1,21 +1,13 @@
--- sql/clickhouse/views/payments/mv_memo_payments_daily.sql
--- Domain: payments - daily memo payment rollups for dashboard counts and volume
--- Covers successful event logs and failed direct calls for the confirmed pathUSD rail
--- Apply with scripts/apply-clickhouse-assets.sh
+-- @name:         mv_memo_payments_daily
+-- @domain:       payments
+-- @kind:         materialized_view
+-- @purpose:      Daily memo payment rollups for dashboard counts and volume (success + failed pathUSD rail)
+-- @upstream:     tidx_4217.logs, tidx_4217.receipts, tidx_4217.txs
+-- @consumers:    src/app/payments/page.tsx, src/lib/payments.ts
+-- @backfill:     sql/clickhouse/backfills/payments/mv_memo_payments_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
 --
--- Migration (run once before re-applying to pick up schema changes):
---   DROP MATERIALIZED VIEW IF EXISTS tidx_4217.mv_memo_payments_daily_success_view;
---   DROP MATERIALIZED VIEW IF EXISTS tidx_4217.mv_memo_payments_daily_failed_view;
---   DROP TABLE IF EXISTS tidx_4217.mv_memo_payments_daily;
---
--- Memo families detected:
---   SOC-*       readable ASCII  prefix 0x534f432d   e.g. "SOC-00zf91bd"
---   ef1e:*      binary          prefix 0xef1ed712   [magic(4)][ver(1)][account_id(10)][tail(17)]
---   mpps:hafu   binary          prefix 0x6d70707368616675  [mppshafu(8)][crypto_tail(24)]
---   (others)    free-text ASCII or truly opaque binary
---
--- Regex fix vs prior version: 7[0-9a-e] now correctly includes z(7a) {(7b) |(7c) }(7d).
--- Previously 7[0-9e] omitted those, causing SOC- IDs containing 'z' to be miscounted as opaque.
 
 CREATE TABLE IF NOT EXISTS tidx_4217.mv_memo_payments_daily
 (

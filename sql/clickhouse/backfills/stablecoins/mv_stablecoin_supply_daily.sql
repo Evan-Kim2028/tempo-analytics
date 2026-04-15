@@ -1,6 +1,11 @@
--- sql/clickhouse/backfills/stablecoins/mv_stablecoin_supply_daily.sql
--- Backfill for tidx_4217.mv_stablecoin_supply_daily
--- Apply after sql/clickhouse/views/stablecoins/mv_stablecoin_supply_daily.sql
+-- @name:         mv_stablecoin_supply_daily
+-- @domain:       stablecoins
+-- @kind:         backfill
+-- @purpose:      Historical backfill for mv_stablecoin_supply_daily.
+-- @pairs:        sql/clickhouse/views/stablecoins/mv_stablecoin_supply_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 INSERT INTO tidx_4217.mv_stablecoin_supply_daily
 SELECT

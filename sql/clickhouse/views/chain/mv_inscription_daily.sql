@@ -1,7 +1,13 @@
--- sql/clickhouse/views/chain/mv_inscription_daily.sql
--- Domain: chain — daily inscription activity (pre-parsed JSON)
--- Inscriptions: tx input starts with 0x7b ('{' in hex = JSON payload)
--- Apply with scripts/apply-clickhouse-assets.sh
+-- @name:         mv_inscription_daily
+-- @domain:       chain
+-- @kind:         materialized_view
+-- @purpose:      Daily inscription activity (transactions with JSON payload input)
+-- @upstream:     tidx_4217.txs
+-- @consumers:    src/app/analytics/page.tsx, src/lib/inscriptions.ts
+-- @backfill:     sql/clickhouse/backfills/chain/mv_inscription_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 CREATE TABLE IF NOT EXISTS tidx_4217.mv_inscription_daily
 (
