@@ -278,8 +278,31 @@ else
       echo "Re-run with --force-recreate to drop and recreate $VIEW_NAME." >&2
       exit 2
     fi
-    # Force-recreate path lands in Task 9.
-    echo "TODO: force-recreate path not yet implemented" >&2
-    exit 1
+    echo "Force-recreating $VIEW_NAME."
+    # Drop the MV and the target table. Names follow the repo convention:
+    #   target table: tidx_4217.<name>
+    #   MV:           tidx_4217.<name>_view
+    for stmt in \
+      "DROP VIEW IF EXISTS ${CLICKHOUSE_DB}.${VIEW_NAME}_view" \
+      "DROP TABLE IF EXISTS ${CLICKHOUSE_DB}.${VIEW_NAME}"; do
+      curl -fsS "${CLICKHOUSE_BASE_URL}/?database=${CLICKHOUSE_DB}" \
+        --data-binary "$stmt" >/dev/null
+    done
+
+    run_sql "$VIEW_FILE"
+
+    DOMAIN_DIR="$(dirname "${ONLY}")"
+    BACKFILL_FILE="$SCRIPT_DIR/../sql/clickhouse/backfills/${DOMAIN_DIR}/${VIEW_NAME}.sql"
+    if [[ -f "$BACKFILL_FILE" ]]; then
+      echo "Running backfill: $BACKFILL_FILE"
+      run_sql "$BACKFILL_FILE"
+    else
+      echo "warning: no backfill file at $BACKFILL_FILE; skipping" >&2
+    fi
+
+    NEW_DDL_TMP="$(mktemp)"
+    compute_view_ddl_text "$VIEW_FILE" > "$NEW_DDL_TMP"
+    upsert_mv_schema_row "$VIEW_NAME" "$NEW_HASH" "$NEW_DDL_TMP"
+    rm -f "$NEW_DDL_TMP"
   fi
 fi
