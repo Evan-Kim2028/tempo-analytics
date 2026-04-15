@@ -72,6 +72,7 @@ import {
   getStablecoinSupplyHistory,
   getDexDailyVolumeUSD,
   getFeeTokenAllDailyStats,
+  getFeeTokenAmountDailyStats,
   getProtocolDexTokenDailyStats,
 } from '@/lib/analytics'
 
@@ -478,6 +479,54 @@ describe('getPaymentsDailyByToken → PaymentsAmountChart', () => {
       .mockResolvedValueOnce(null)
 
     const data = await getPaymentsDailyByToken(1)
+    expect(data.tokens[0].total).toBeGreaterThanOrEqual(data.tokens[1].total)
+  })
+})
+
+// Chart: FeeTokenAmountChart
+// DataKeys: fee_token addresses (dynamic, from data.tokens[].address)
+describe('getFeeTokenAmountDailyStats → FeeTokenAmountChart', () => {
+  const TOKEN_A = '0xaaaa000000000000000000000000000000000000'
+  const TOKEN_B = '0xbbbb000000000000000000000000000000000000'
+
+  test('pivot contract: token addresses appear as numeric keys in days rows', async () => {
+    mockQueryOnce([
+      { day: '2026-04-01', fee_token: TOKEN_A, fee_usd: '0.042' },
+      { day: '2026-04-01', fee_token: TOKEN_B, fee_usd: '0.010' },
+      { day: '2026-04-02', fee_token: TOKEN_A, fee_usd: '0.038' },
+    ])
+    mockGetTokenInfo
+      .mockResolvedValueOnce({ symbol: 'USDC.e', name: 'USD Coin (Bridged)', decimals: 6, address: TOKEN_A })
+      .mockResolvedValueOnce({ symbol: 'pathUSD', name: 'pathUSD', decimals: 6, address: TOKEN_B })
+
+    const data = await getFeeTokenAmountDailyStats(2)
+    expectPivotContract(
+      data.days as never,
+      data.tokens.map(t => ({ key: t.address })),
+    )
+  })
+
+  test('pivot contract: zero fee_usd is a valid finite number (no NaN)', async () => {
+    mockQueryOnce([
+      { day: '2026-04-01', fee_token: TOKEN_A, fee_usd: '0' },
+    ])
+    mockGetTokenInfo.mockResolvedValueOnce(null)
+
+    const data = await getFeeTokenAmountDailyStats(1)
+    expectPivotContract(
+      data.days as never,
+      data.tokens.map(t => ({ key: t.address })),
+    )
+  })
+
+  test('tokens are sorted by total descending', async () => {
+    mockQueryOnce([
+      { day: '2026-04-01', fee_token: TOKEN_B, fee_usd: '0.001' },
+      { day: '2026-04-01', fee_token: TOKEN_A, fee_usd: '0.050' },
+    ])
+    mockGetTokenInfo.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
+
+    const data = await getFeeTokenAmountDailyStats(1)
     expect(data.tokens[0].total).toBeGreaterThanOrEqual(data.tokens[1].total)
   })
 })
