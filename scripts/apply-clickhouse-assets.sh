@@ -382,3 +382,9 @@ else
     rm -f "$NEW_DDL_TMP"
   fi
 fi
+
+if bash "$SCRIPT_DIR/gen-data-assets-doc.sh"; then
+  :
+else
+  echo "warning: gen-data-assets-doc.sh failed; doc not regenerated" >&2
+fi
