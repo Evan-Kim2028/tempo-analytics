@@ -1,19 +1,18 @@
 import { getCached, setCached } from '@/lib/cache'
 import { queryClickHouse } from '@/lib/clickhouse'
+import { STABLECOIN_ADDRESSES, KNOWN_TOKENS, getTokenInfo } from '@/lib/tokens'
 
 const ZERO_MEMO = '0x' + '00'.repeat(32)
 const CACHE_TTL_SECONDS = 900
 
+// SQL-ready IN-list for all verified stablecoins. Mirrors STABLECOIN_ADDRESSES.
+const STABLECOIN_IN_LIST = STABLECOIN_ADDRESSES.map(a => `'${a}'`).join(', ')
+
+// All verified stablecoins use 6 decimals.
+const PAYMENT_DECIMALS = 6
+
 export type PaymentStatus = 'success' | 'failed'
 export type MemoKind = 'readable' | 'opaque' | 'empty'
-
-export interface SupportedPaymentMethod {
-  token: string
-  token_label: string
-  call_selector: string
-  event_selector: string
-  decimals: number
-}
 
 export interface PaymentRow {
   timestamp: string
@@ -61,10 +60,18 @@ export interface PaymentCounterpartyRow {
   total_amount: number
 }
 
+export interface PaymentsDailyByToken {
+  /** One entry per day; each keyed by token address → USD amount */
+  days: Array<Record<string, string | number>>
+  /** Tokens sorted by all-period total descending */
+  tokens: Array<{ address: string; symbol: string; total: number }>
+}
+
 export interface PaymentsPageData {
   summary: PaymentsSummaryStats
   recent: PaymentRow[]
   daily: PaymentsDailyPoint[]
+  dailyByToken: PaymentsDailyByToken
   topRecipientsByAmount: PaymentCounterpartyRow[]
   topRecipientsByCount: PaymentCounterpartyRow[]
   topSenders: PaymentCounterpartyRow[]
@@ -113,16 +120,6 @@ interface RawPaymentCounterpartyRow {
   total_amount?: string | number
   total_amount_raw?: string | number
 }
-
-export const PAYMENT_METHODS = [
-  {
-    token: '0x20c0000000000000000000000000000000000000',
-    token_label: 'pathUSD',
-    call_selector: '0x95777d59',
-    event_selector: '0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0',
-    decimals: 6,
-  },
-] satisfies SupportedPaymentMethod[]
 
 function isPrintableAscii(value: Buffer) {
   return [...value].every(byte => byte === 0 || (byte >= 32 && byte <= 126))
@@ -196,8 +193,7 @@ function normalizeAmount(amountRaw: string, decimals: number) {
 
 function normalizeAggregateAmount(value: { total_amount?: string | number; total_amount_raw?: string | number }) {
   if (value.total_amount_raw !== undefined) {
-    const decimals = PAYMENT_METHODS[0]?.decimals ?? 0
-    return roundTo(Number(value.total_amount_raw ?? 0) / 10 ** decimals)
+    return roundTo(Number(value.total_amount_raw ?? 0) / 10 ** PAYMENT_DECIMALS)
   }
 
   return roundTo(toNumber(value.total_amount))
@@ -208,62 +204,62 @@ function topicToAddress(value: string) {
   return `0x${normalized.slice(-40)}`
 }
 
-function buildSuccessfulPaymentsQuery(days: number) {
-  return PAYMENT_METHODS.map(method => `
+function buildSuccessfulPaymentsQuery(days: number): string {
+  return `
     SELECT
       block_timestamp,
       tx_hash,
       topic1 AS sender,
       topic2 AS recipient,
-      '${method.token}' AS token,
+      lower(address) AS token,
       toString(reinterpretAsUInt256(reverse(unhex(substr(data, 3, 64))))) AS amount_raw,
       lower(topic3) AS memo_hex
     FROM logs
     WHERE block_timestamp >= now() - INTERVAL ${days} DAY
-      AND selector = '${method.event_selector}'
-      AND lower(address) = '${method.token}'
-  `).join('\nUNION ALL\n')
+      AND selector = '0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0'
+      AND lower(address) IN (${STABLECOIN_IN_LIST})
+  `
 }
 
-function buildFailedPaymentsQuery(days: number) {
-  return PAYMENT_METHODS.map(method => `
+function buildFailedPaymentsQuery(days: number): string {
+  return `
     SELECT
       txs.block_timestamp,
       txs.hash AS tx_hash,
       lower(txs.from) AS sender,
       lower(concat('0x', substr(txs.input, 35, 40))) AS recipient,
-      '${method.token}' AS token,
+      lower(txs.to) AS token,
       toString(reinterpretAsUInt256(reverse(unhex(substr(txs.input, 75, 64))))) AS amount_raw,
       lower(concat('0x', substr(txs.input, 139, 64))) AS memo_hex
     FROM txs
     LEFT JOIN receipts ON receipts.tx_hash = txs.hash
     WHERE txs.block_timestamp >= now() - INTERVAL ${days} DAY
-      AND startsWith(lower(txs.input), '${method.call_selector}')
-      AND lower(txs.to) = '${method.token}'
+      AND startsWith(lower(txs.input), '0x95777d59')
+      AND lower(txs.to) IN (${STABLECOIN_IN_LIST})
       AND (receipts.status = 0 OR receipts.status = '0')
-  `).join('\nUNION ALL\n')
+  `
 }
 
-function buildRawPaymentsSourceQuery(days: number, statuses: PaymentStatus[] = ['success', 'failed']) {
+function buildRawPaymentsSourceQuery(days: number, statuses: PaymentStatus[] = ['success', 'failed']): string {
   const sources: string[] = []
 
   if (statuses.includes('success')) {
-    sources.push(...PAYMENT_METHODS.map(method => `
+    sources.push(`
       SELECT
         toDate(block_timestamp) AS day,
         concat('0x', lower(substring(topic1, 27, 40))) AS sender,
         concat('0x', lower(substring(topic2, 27, 40))) AS recipient,
-        toFloat64(reinterpretAsUInt256(reverse(unhex(substr(data, 3, 64))))) / ${10 ** method.decimals} AS amount,
+        toFloat64(reinterpretAsUInt256(reverse(unhex(substr(data, 3, 64))))) / ${10 ** PAYMENT_DECIMALS} AS amount,
         'success' AS status
       FROM logs
       WHERE block_timestamp >= now() - INTERVAL ${days} DAY
-        AND selector = '${method.event_selector}'
-        AND lower(address) = '${method.token}'
-    `))
+        AND selector = '0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0'
+        AND lower(address) IN (${STABLECOIN_IN_LIST})
+    `)
   }
 
   if (statuses.includes('failed')) {
-    sources.push(...PAYMENT_METHODS.map(method => `
+    sources.push(`
       SELECT
         day,
         sender,
@@ -272,19 +268,15 @@ function buildRawPaymentsSourceQuery(days: number, statuses: PaymentStatus[] = [
         'failed' AS status
       FROM mv_memo_payments_failed_actors
       WHERE day >= today() - ${days}
-        AND token = '${method.token}'
-    `))
+        AND token IN (${STABLECOIN_IN_LIST})
+    `)
   }
 
   return sources.join('\nUNION ALL\n')
 }
 
 function normalizePaymentRow(row: RawPaymentRow, status: PaymentStatus): PaymentRow {
-  const method = PAYMENT_METHODS.find(candidate => candidate.token === row.token.toLowerCase())
-  if (!method) {
-    throw new Error(`Unsupported payment token: ${row.token}`)
-  }
-
+  const tokenInfo = KNOWN_TOKENS[row.token.toLowerCase()]
   const memo = decodeMemoHex(row.memo_hex)
   return {
     timestamp: row.block_timestamp,
@@ -292,9 +284,9 @@ function normalizePaymentRow(row: RawPaymentRow, status: PaymentStatus): Payment
     tx_hash: row.tx_hash.toLowerCase(),
     sender: topicToAddress(row.sender),
     recipient: topicToAddress(row.recipient),
-    token: method.token,
-    token_label: method.token_label,
-    amount: normalizeAmount(row.amount_raw, method.decimals),
+    token: row.token.toLowerCase(),
+    token_label: tokenInfo?.symbol ?? `${row.token.slice(0, 8)}…`,
+    amount: normalizeAmount(row.amount_raw, PAYMENT_DECIMALS),
     status,
     memo_hex: memo.memo_hex,
     memo_text: memo.memo_text,
@@ -475,6 +467,55 @@ export async function getPaymentsDaily(days = 30): Promise<PaymentsDailyPoint[]>
   return mapped
 }
 
+export async function getPaymentsDailyByToken(days = 30): Promise<PaymentsDailyByToken> {
+  const cacheKey = `payments:daily-by-token:${days}`
+  const cached = await getCached<PaymentsDailyByToken>(cacheKey)
+  if (cached !== null) return cached
+
+  const rows = await queryClickHouse<{ day: string; token: string; total_amount: string | number }>(`
+    SELECT
+      day,
+      token,
+      sum(total_amount) AS total_amount
+    FROM mv_memo_payments_daily
+    WHERE day >= today() - ${days}
+    GROUP BY day, token
+    ORDER BY day ASC
+  `)
+
+  // Aggregate totals per token across the period
+  const tokenTotals = new Map<string, number>()
+  for (const r of rows) {
+    tokenTotals.set(r.token, (tokenTotals.get(r.token) ?? 0) + toNumber(r.total_amount))
+  }
+
+  // Resolve symbols via KNOWN_TOKENS cache (skipRPC — these are all system tokens)
+  const tokenEntries = await Promise.all(
+    [...tokenTotals.entries()].map(async ([address, total]) => {
+      const info = await getTokenInfo(address, { skipRPC: true })
+      return {
+        address,
+        symbol: info?.symbol ?? `${address.slice(0, 6)}…${address.slice(-4)}`,
+        total: roundTo(total),
+      }
+    })
+  )
+  tokenEntries.sort((a, b) => b.total - a.total)
+
+  // Pivot by day: { day, [tokenAddress]: amount, … }
+  const dayMap = new Map<string, Record<string, string | number>>()
+  for (const r of rows) {
+    const day = sliceDay(String(r.day))
+    if (!dayMap.has(day)) dayMap.set(day, { day })
+    dayMap.get(day)![r.token] = roundTo(toNumber(r.total_amount))
+  }
+  const dayRows = [...dayMap.values()].sort((a, b) => String(a.day).localeCompare(String(b.day)))
+
+  const result: PaymentsDailyByToken = { days: dayRows, tokens: tokenEntries }
+  await setCached(cacheKey, result, CACHE_TTL_SECONDS)
+  return result
+}
+
 export async function getPaymentsSummary(days = 30): Promise<PaymentsSummaryStats> {
   const cacheKey = `payments:summary:${days}`
   const cached = await getCached<PaymentsSummaryStats>(cacheKey)
@@ -511,10 +552,11 @@ export async function getPaymentsSummary(days = 30): Promise<PaymentsSummaryStat
 }
 
 export async function getPaymentsPageData(): Promise<PaymentsPageData> {
-  const [summary, daily, recent, topRecipientsByAmount, topRecipientsByCount, topSenders] =
+  const [summary, daily, dailyByToken, recent, topRecipientsByAmount, topRecipientsByCount, topSenders] =
     await Promise.all([
       getPaymentsSummary(),
       getPaymentsDaily(),
+      getPaymentsDailyByToken(),
       getRecentPayments(),
       getTopCounterparties('recipient', 'amount'),
       getTopCounterparties('recipient', 'count'),
@@ -524,6 +566,7 @@ export async function getPaymentsPageData(): Promise<PaymentsPageData> {
   return {
     summary,
     daily,
+    dailyByToken,
     recent,
     topRecipientsByAmount,
     topRecipientsByCount,

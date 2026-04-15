@@ -85,6 +85,8 @@ import {
 
 import { getBridgeNetInflowChartData } from '@/lib/bridges'
 
+import { getPaymentsDailyByToken } from '@/lib/payments'
+
 import { expectRechartsRows, expectPivotContract } from '../helpers/chart-contract'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -427,5 +429,55 @@ describe('getBridgeNetInflowChartData → BridgeNetInflowChart', () => {
     if (data.providers.length > 2) {
       expect(data.providers[1].total).toBeGreaterThanOrEqual(data.providers[2].total)
     }
+  })
+})
+
+// Chart: PaymentsAmountChart (stacked by token)
+// DataKeys: token addresses (dynamic, from data.tokens[].address)
+describe('getPaymentsDailyByToken → PaymentsAmountChart', () => {
+  const USDC_E  = '0x20c000000000000000000000b9537d11c60e8b50'
+  const PATHUSD = '0x20c0000000000000000000000000000000000000'
+
+  test('pivot contract: token addresses appear as numeric keys in days rows', async () => {
+    mockQueryOnce([
+      { day: '2026-04-01', token: USDC_E,  total_amount: '150.50' },
+      { day: '2026-04-01', token: PATHUSD, total_amount: '30.00' },
+      { day: '2026-04-02', token: USDC_E,  total_amount: '200.00' },
+    ])
+    mockGetTokenInfo
+      .mockResolvedValueOnce({ symbol: 'USDC.e', name: 'USD Coin (Bridged)', decimals: 6, address: USDC_E })
+      .mockResolvedValueOnce({ symbol: 'pathUSD', name: 'pathUSD', decimals: 6, address: PATHUSD })
+
+    const data = await getPaymentsDailyByToken(2)
+    expectPivotContract(
+      data.days as never,
+      data.tokens.map(t => ({ key: t.address })),
+    )
+  })
+
+  test('pivot contract: unknown token falls back to address key and still has finite value', async () => {
+    mockQueryOnce([
+      { day: '2026-04-01', token: USDC_E, total_amount: '500.00' },
+    ])
+    mockGetTokenInfo.mockResolvedValueOnce(null)
+
+    const data = await getPaymentsDailyByToken(1)
+    expectPivotContract(
+      data.days as never,
+      data.tokens.map(t => ({ key: t.address })),
+    )
+  })
+
+  test('tokens are sorted by total descending', async () => {
+    mockQueryOnce([
+      { day: '2026-04-01', token: PATHUSD, total_amount: '10.00' },
+      { day: '2026-04-01', token: USDC_E,  total_amount: '500.00' },
+    ])
+    mockGetTokenInfo
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+
+    const data = await getPaymentsDailyByToken(1)
+    expect(data.tokens[0].total).toBeGreaterThanOrEqual(data.tokens[1].total)
   })
 })
