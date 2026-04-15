@@ -143,6 +143,61 @@ resolve_only() {
   printf '%s\n' "$view_path"
 }
 
+consumer_safety_check() {
+  local view_file="$1"
+  local view_name="$2"
+  python3 <<PY
+import subprocess, sys
+from pathlib import Path
+sys.path.insert(0, "$SCRIPT_DIR/lib")
+from mv_header import parse_header
+from mv_ddl import extract_columns, extract_target_ddl
+
+view_path = Path("$view_file")
+repo_root = Path("$SCRIPT_DIR").parent
+header = parse_header(view_path)
+consumers = header.get("consumers", [])
+
+new_cols = set(extract_columns(extract_target_ddl(view_path.read_text())))
+
+# Fetch recorded DDL from CH to diff old columns
+import urllib.request, urllib.parse
+q = f"SELECT ddl_text FROM ${CLICKHOUSE_DB}._mv_schema FINAL WHERE name='$view_name' FORMAT TSVRaw"
+url = "$CLICKHOUSE_BASE_URL/?database=$CLICKHOUSE_DB&" + urllib.parse.urlencode({"query": q})
+recorded = urllib.request.urlopen(url).read().decode("utf-8").strip()
+if not recorded:
+    sys.exit(0)  # first install; nothing to diff
+
+old_cols = set(extract_columns(recorded))
+dropped = old_cols - new_cols
+if not dropped:
+    sys.exit(0)
+
+print(f"Dropped/renamed columns: {sorted(dropped)}", file=sys.stderr)
+hits = []
+for consumer in consumers:
+    path = consumer.split("::", 1)[0]
+    full = repo_root / path
+    if not full.exists():
+        continue
+    for col in dropped:
+        result = subprocess.run(
+            ["grep", "-nFw", col, str(full)],
+            capture_output=True, text=True,
+        )
+        if result.stdout:
+            hits.append((path, col, result.stdout.strip()))
+
+if hits:
+    print("Consumer references to dropped/renamed columns:", file=sys.stderr)
+    for path, col, out in hits:
+        print(f"  [{col}] {path}:", file=sys.stderr)
+        for line in out.splitlines():
+            print(f"    {line}", file=sys.stderr)
+    sys.exit(10)
+PY
+}
+
 rewrite_sql_for_db() {
   local file="$1"
 
@@ -277,6 +332,27 @@ else
       echo "" >&2
       echo "Re-run with --force-recreate to drop and recreate $VIEW_NAME." >&2
       exit 2
+    fi
+    if consumer_safety_check "$VIEW_FILE" "$VIEW_NAME"; then
+      :
+    else
+      rc=$?
+      if [[ "$rc" != 10 ]]; then
+        echo "consumer-safety check failed with rc=$rc" >&2
+        exit "$rc"
+      fi
+      if [[ "$I_KNOW" != 1 ]]; then
+        if [[ -t 0 ]]; then
+          read -r -p "Proceed anyway? [y/N] " reply
+          if [[ "$reply" != "y" && "$reply" != "Y" ]]; then
+            echo "aborted by operator" >&2
+            exit 3
+          fi
+        else
+          echo "non-interactive: pass --i-know-consumers-break to override" >&2
+          exit 3
+        fi
+      fi
     fi
     echo "Force-recreating $VIEW_NAME."
     # Drop the MV and the target table. Names follow the repo convention:
