@@ -1,6 +1,11 @@
--- sql/clickhouse/backfills/tokens/mv_erc20_volume_daily.sql
--- Backfill for tidx_4217.mv_erc20_volume_daily
--- Apply after sql/clickhouse/views/tokens/mv_erc20_volume_daily.sql
+-- @name:         mv_erc20_volume_daily
+-- @domain:       tokens
+-- @kind:         backfill
+-- @purpose:      Historical backfill for mv_erc20_volume_daily.
+-- @pairs:        sql/clickhouse/views/tokens/mv_erc20_volume_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 INSERT INTO tidx_4217.mv_erc20_volume_daily
 SELECT

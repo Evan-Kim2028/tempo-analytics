@@ -5,7 +5,7 @@ describe('PrimaryNav', () => {
   it('renders the primary explorer tabs without Blocks', () => {
     render(<PrimaryNav />)
 
-    expect(screen.getByRole('link', { name: 'Analytics' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Transactions' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Stablecoins' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'DEX' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Bridges' })).toBeInTheDocument()

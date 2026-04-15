@@ -91,15 +91,27 @@ wait_for_http "$CLICKHOUSE_URL" "ClickHouse HTTP"
 wait_for_http "$TIDX_HEALTH_URL" "tidx health"
 wait_for_clickhouse_tables
 
+APPLY_ARGS=()
+if [[ -n "${TAKOPI_MV_ONLY:-}" ]]; then
+  APPLY_ARGS+=(--only "$TAKOPI_MV_ONLY")
+fi
+if [[ "${TAKOPI_MV_FORCE_RECREATE:-0}" == "1" ]]; then
+  if [[ -z "${TAKOPI_MV_ONLY:-}" ]]; then
+    echo "error: TAKOPI_MV_FORCE_RECREATE=1 requires TAKOPI_MV_ONLY" >&2
+    exit 2
+  fi
+  APPLY_ARGS+=(--force-recreate --i-know-consumers-break)
+fi
+
 if [[ -f "$TAKOPI_TEMPO_CLICKHOUSE_BOOTSTRAP_MARKER" ]]; then
   echo "Applying ClickHouse view definitions for ${CLICKHOUSE_DB}"
   CLICKHOUSE_RUN_BACKFILLS=0 CLICKHOUSE_URL="$CLICKHOUSE_URL" CLICKHOUSE_DB="$CLICKHOUSE_DB" \
-    bash "$SCRIPT_DIR/apply-clickhouse-assets.sh"
+    bash "$SCRIPT_DIR/apply-clickhouse-assets.sh" "${APPLY_ARGS[@]}"
 else
   echo "Bootstrapping ClickHouse analytics assets for ${CLICKHOUSE_DB}"
   reset_existing_assets
   CLICKHOUSE_RUN_BACKFILLS=1 CLICKHOUSE_URL="$CLICKHOUSE_URL" CLICKHOUSE_DB="$CLICKHOUSE_DB" \
-    bash "$SCRIPT_DIR/apply-clickhouse-assets.sh"
+    bash "$SCRIPT_DIR/apply-clickhouse-assets.sh" "${APPLY_ARGS[@]}"
   touch "$TAKOPI_TEMPO_CLICKHOUSE_BOOTSTRAP_MARKER"
 fi
 

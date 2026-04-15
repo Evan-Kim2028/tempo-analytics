@@ -1,7 +1,13 @@
--- sql/clickhouse/views/tokens/mv_token_transfers_daily.sql
--- Domain: tokens — daily Transfer event count by token address (ERC-20 + ERC-721)
--- topic3 is not filtered: counts both ERC-20 and ERC-721 Transfer events
--- Apply with scripts/apply-clickhouse-assets.sh
+-- @name:         mv_token_transfers_daily
+-- @domain:       tokens
+-- @kind:         materialized_view
+-- @purpose:      Daily Transfer event count by token address (ERC-20 and ERC-721)
+-- @upstream:     tidx_4217.logs
+-- @consumers:    src/lib/analytics.ts
+-- @backfill:     sql/clickhouse/backfills/tokens/mv_token_transfers_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 CREATE TABLE IF NOT EXISTS tidx_4217.mv_token_transfers_daily
 (

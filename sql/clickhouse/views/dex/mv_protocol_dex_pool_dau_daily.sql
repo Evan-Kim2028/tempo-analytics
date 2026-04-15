@@ -1,8 +1,13 @@
--- sql/clickhouse/views/dex/mv_protocol_dex_pool_dau_daily.sql
--- Domain: dex — Protocol DEX per-pool daily active users (unique taker addresses)
--- topic2: taker address (32-byte padded); strip padding to get 20-byte address
--- Same swap event selector as mv_protocol_dex_pool_daily
--- Apply with scripts/apply-clickhouse-assets.sh
+-- @name:         mv_protocol_dex_pool_dau_daily
+-- @domain:       dex
+-- @kind:         materialized_view
+-- @purpose:      Protocol DEX per-pool daily active users (unique taker addresses)
+-- @upstream:     tidx_4217.logs
+-- @consumers:    src/app/dex/page.tsx, src/lib/analytics.ts
+-- @backfill:     sql/clickhouse/backfills/dex/mv_protocol_dex_pool_dau_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 CREATE TABLE IF NOT EXISTS tidx_4217.mv_protocol_dex_pool_dau_daily
 (

@@ -1,6 +1,11 @@
--- sql/clickhouse/backfills/tokens/mv_token_transfers_daily.sql
--- Backfill for tidx_4217.mv_token_transfers_daily
--- Apply after sql/clickhouse/views/tokens/mv_token_transfers_daily.sql
+-- @name:         mv_token_transfers_daily
+-- @domain:       tokens
+-- @kind:         backfill
+-- @purpose:      Historical backfill for mv_token_transfers_daily.
+-- @pairs:        sql/clickhouse/views/tokens/mv_token_transfers_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 INSERT INTO tidx_4217.mv_token_transfers_daily
 SELECT toDate(block_timestamp), address, count()

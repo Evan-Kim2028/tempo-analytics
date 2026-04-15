@@ -1,6 +1,11 @@
--- sql/clickhouse/backfills/dex/mv_protocol_dex_pool_dau_daily.sql
--- Backfill for tidx_4217.mv_protocol_dex_pool_dau_daily
--- Apply after sql/clickhouse/views/dex/mv_protocol_dex_pool_dau_daily.sql
+-- @name:         mv_protocol_dex_pool_dau_daily
+-- @domain:       dex
+-- @kind:         backfill
+-- @purpose:      Historical backfill for mv_protocol_dex_pool_dau_daily.
+-- @pairs:        sql/clickhouse/views/dex/mv_protocol_dex_pool_dau_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 INSERT INTO tidx_4217.mv_protocol_dex_pool_dau_daily
 SELECT

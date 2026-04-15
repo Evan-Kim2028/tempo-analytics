@@ -1,6 +1,11 @@
--- sql/clickhouse/backfills/nfts/mv_nft_daily.sql
--- Backfill for tidx_4217.mv_nft_daily
--- Apply after sql/clickhouse/views/nfts/mv_nft_daily.sql
+-- @name:         mv_nft_daily
+-- @domain:       nfts
+-- @kind:         backfill
+-- @purpose:      Historical backfill for mv_nft_daily.
+-- @pairs:        sql/clickhouse/views/nfts/mv_nft_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 INSERT INTO tidx_4217.mv_nft_daily
 SELECT toDate(block_timestamp), address, count()

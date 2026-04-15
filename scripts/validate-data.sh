@@ -32,6 +32,15 @@ pass() {
 echo "=== Tempo Explorer Data Validation ==="
 echo ""
 
+echo "0. Python unittests (header + DDL helpers)..."
+SCRIPT_DIR_VD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ( cd "$SCRIPT_DIR_VD/lib" && python3 -m unittest discover -v -p 'test_*.py' ) >/tmp/mv_unittest.log 2>&1; then
+  pass "Python unittests: $(grep -oE 'Ran [0-9]+ tests' /tmp/mv_unittest.log | head -1)"
+else
+  fail "Python unittests failed; see /tmp/mv_unittest.log"
+  cat /tmp/mv_unittest.log
+fi
+
 echo "1. Transaction count..."
 TX_COUNT=$(ch "SELECT count() FROM ${CLICKHOUSE_DB}.txs")
 if [ "$TX_COUNT" -ge 15700000 ]; then
