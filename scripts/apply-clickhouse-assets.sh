@@ -252,7 +252,34 @@ if [[ -z "$ONLY" ]]; then
   fi
 else
   VIEW_FILE="$(resolve_only "$ONLY")"
-  echo "Single-view mode: $ONLY"
-  # Drift-guard + recreate path is added in Task 7–9.
-  run_sql "$VIEW_FILE"
+  VIEW_NAME="$(basename "$VIEW_FILE" .sql)"
+  NEW_HASH="$(compute_view_hash "$VIEW_FILE")"
+  OLD_HASH="$(fetch_recorded_hash "$VIEW_NAME" | tr -d '[:space:]')"
+
+  if [[ -z "$OLD_HASH" ]]; then
+    echo "First install of $VIEW_NAME; applying."
+    run_sql "$VIEW_FILE"
+    NEW_DDL_TMP="$(mktemp)"
+    compute_view_ddl_text "$VIEW_FILE" > "$NEW_DDL_TMP"
+    upsert_mv_schema_row "$VIEW_NAME" "$NEW_HASH" "$NEW_DDL_TMP"
+    rm -f "$NEW_DDL_TMP"
+  elif [[ "$OLD_HASH" == "$NEW_HASH" ]]; then
+    echo "Target-table DDL unchanged for $VIEW_NAME; applying SELECT-body update."
+    run_sql "$VIEW_FILE"
+  else
+    if [[ "$FORCE_RECREATE" != 1 ]]; then
+      echo "DRIFT DETECTED for $VIEW_NAME" >&2
+      echo "Recorded DDL:" >&2
+      fetch_recorded_ddl_text "$VIEW_NAME" >&2
+      echo "" >&2
+      echo "Repo DDL:" >&2
+      compute_view_ddl_text "$VIEW_FILE" >&2
+      echo "" >&2
+      echo "Re-run with --force-recreate to drop and recreate $VIEW_NAME." >&2
+      exit 2
+    fi
+    # Force-recreate path lands in Task 9.
+    echo "TODO: force-recreate path not yet implemented" >&2
+    exit 1
+  fi
 fi
