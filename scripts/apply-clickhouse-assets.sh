@@ -80,6 +80,57 @@ PY
 
 validate_headers
 
+ensure_mv_schema() {
+  run_sql "$SCRIPT_DIR/../sql/clickhouse/system/_mv_schema.sql"
+}
+
+ensure_mv_schema
+
+fetch_recorded_hash() {
+  local name="$1"
+  curl -fsS "${CLICKHOUSE_BASE_URL}/?database=${CLICKHOUSE_DB}" \
+    --data-urlencode "query=SELECT ddl_hash FROM ${CLICKHOUSE_DB}._mv_schema FINAL WHERE name='${name}' FORMAT TSV" \
+    || true
+}
+
+fetch_recorded_ddl_text() {
+  local name="$1"
+  curl -fsS "${CLICKHOUSE_BASE_URL}/?database=${CLICKHOUSE_DB}" \
+    --data-urlencode "query=SELECT ddl_text FROM ${CLICKHOUSE_DB}._mv_schema FINAL WHERE name='${name}' FORMAT TSV" \
+    || true
+}
+
+compute_view_hash() {
+  local file="$1"
+  python3 <<PY
+import sys
+sys.path.insert(0, "$SCRIPT_DIR/lib")
+from mv_ddl import ddl_hash
+print(ddl_hash(open("$file").read()))
+PY
+}
+
+compute_view_ddl_text() {
+  local file="$1"
+  python3 <<PY
+import sys
+sys.path.insert(0, "$SCRIPT_DIR/lib")
+from mv_ddl import extract_target_ddl
+print(extract_target_ddl(open("$file").read()))
+PY
+}
+
+upsert_mv_schema_row() {
+  local name="$1"
+  local hash="$2"
+  local ddl_file="$3"
+  local encoded_ddl
+  encoded_ddl="$(python3 -c "import sys; print(open(sys.argv[1]).read().replace(\"'\", \"''\"))" "$ddl_file")"
+  curl -fsS "${CLICKHOUSE_BASE_URL}/?database=${CLICKHOUSE_DB}" \
+    --data-binary "INSERT INTO ${CLICKHOUSE_DB}._mv_schema (name, ddl_hash, ddl_text) VALUES ('${name}', '${hash}', '${encoded_ddl}')" \
+    >/dev/null
+}
+
 resolve_only() {
   local spec="$1"
   local view_path="$SCRIPT_DIR/../sql/clickhouse/views/$spec.sql"
