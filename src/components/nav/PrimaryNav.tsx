@@ -1,5 +1,5 @@
 const primaryTabs = [
-  { href: '/analytics', label: 'Analytics' },
+  { href: '/analytics', label: 'Transactions' },
   { href: '/stablecoins', label: 'Stablecoins' },
   { href: '/payments', label: 'Payments' },
   { href: '/dex', label: 'DEX' },
