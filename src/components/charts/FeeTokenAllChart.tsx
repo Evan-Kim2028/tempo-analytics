@@ -41,18 +41,20 @@ export function FeeTokenAllChart({ data }: { data: FeeTokenAllDailyStat }) {
   return (
     <div>
       <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={data.days} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+        <BarChart data={data.days} margin={{ top: 4, right: 16, left: 8, bottom: 18 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1E1E2E" />
           <XAxis
             dataKey="day"
             tick={{ fill: '#6B7280', fontSize: 11 }}
             tickFormatter={v => String(v).slice(5)}
             interval="preserveStartEnd"
+            label={{ value: 'Date', position: 'insideBottom', offset: -2, fill: '#6B7280', fontSize: 11 }}
           />
           <YAxis
             tick={{ fill: '#6B7280', fontSize: 11 }}
             tickFormatter={v => fmtCount.format(v)}
-            width={48}
+            width={72}
+            label={{ value: 'Transactions', angle: -90, position: 'insideLeft', fill: '#6B7280', fontSize: 11, style: { textAnchor: 'middle' } }}
           />
           <Tooltip
             contentStyle={{ backgroundColor: '#13131A', border: '1px solid #1E1E2E', borderRadius: 6 }}

@@ -15,18 +15,20 @@ interface Props {
 export function InscriptionChart({ totals }: Props) {
   return (
     <ResponsiveContainer width="100%" height={240}>
-      <BarChart data={totals} layout="vertical" margin={{ top: 4, right: 32, left: 40, bottom: 0 }}>
+      <BarChart data={totals} layout="vertical" margin={{ top: 4, right: 32, left: 40, bottom: 18 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#1E1E2E" horizontal={false} />
         <XAxis
           type="number"
           tick={{ fill: '#6B7280', fontSize: 11 }}
           tickFormatter={v => new Intl.NumberFormat('en-US', { notation: 'compact' }).format(v)}
+          label={{ value: 'Mints', position: 'insideBottom', offset: -2, fill: '#6B7280', fontSize: 11 }}
         />
         <YAxis
           type="category"
           dataKey="tick"
           tick={{ fill: '#fff', fontSize: 12 }}
-          width={48}
+          width={72}
+          label={{ value: 'Ticker', angle: -90, position: 'insideLeft', fill: '#6B7280', fontSize: 11, style: { textAnchor: 'middle' } }}
         />
         <Tooltip
           contentStyle={{ backgroundColor: '#13131A', border: '1px solid #1E1E2E', borderRadius: 6 }}
