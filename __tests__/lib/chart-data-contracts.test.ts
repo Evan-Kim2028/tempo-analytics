@@ -139,46 +139,40 @@ describe('getDailyStatsCategorized → TxCategoryChart', () => {
   })
 })
 
-// Chart: StablecoinVolumeChart
-// DataKeys: pathUSD_volume, usdc_e_volume
+// Chart: StablecoinVolumeChart (dynamic token keys)
 describe('getStablecoinDailyVolume → StablecoinVolumeChart', () => {
   const PATHUSD = '0x20c0000000000000000000000000000000000000'
   const USDC_E  = '0x20c000000000000000000000b9537d11c60e8b50'
 
-  test('contract: pathUSD_volume and usdc_e_volume are finite numbers', async () => {
+  test('pivot contract: token addresses appear as numeric keys in days rows', async () => {
     mockQueryOnce([
-      { day: '2026-04-01', token: PATHUSD, volume_raw: '5000000', transfers: '10' },
-      { day: '2026-04-01', token: USDC_E,  volume_raw: '3000000', transfers: '5'  },
+      { day: '2026-04-01', token: PATHUSD, volume_raw: '5000000' },
+      { day: '2026-04-01', token: USDC_E,  volume_raw: '3000000' },
+      { day: '2026-04-02', token: PATHUSD, volume_raw: '4000000' },
     ])
-    const rows = await getStablecoinDailyVolume(1)
-    expectRechartsRows(rows as never, ['pathUSD_volume', 'usdc_e_volume'])
-  })
-
-  test('contract: missing token on a day fills in as 0 (finite, not undefined)', async () => {
-    // Day 2 has only pathUSD — usdc_e should be 0, not undefined
-    mockQueryOnce([
-      { day: '2026-04-01', token: PATHUSD, volume_raw: '5000000', transfers: '10' },
-      { day: '2026-04-01', token: USDC_E,  volume_raw: '3000000', transfers: '5'  },
-      { day: '2026-04-02', token: PATHUSD, volume_raw: '4000000', transfers: '8'  },
-    ])
-    const rows = await getStablecoinDailyVolume(2)
-    expectRechartsRows(rows as never, ['pathUSD_volume', 'usdc_e_volume'])
+    const data = await getStablecoinDailyVolume(2)
+    expectPivotContract(
+      data.days as never,
+      data.tokens.map(t => ({ key: t.address })),
+    )
   })
 })
 
-// Chart: StablecoinSupplyChart
-// DataKeys: pathUSD, usdc_e
+// Chart: StablecoinSupplyChart (dynamic token keys, cumulative)
 describe('getStablecoinSupplyHistory → StablecoinSupplyChart', () => {
   const PATHUSD = '0x20c0000000000000000000000000000000000000'
   const USDC_E  = '0x20c000000000000000000000b9537d11c60e8b50'
 
-  test('contract: pathUSD and usdc_e are finite numbers', async () => {
+  test('pivot contract: token addresses appear as numeric keys in days rows', async () => {
     mockQueryOnce([
       { day: '2026-04-01', token: PATHUSD, net_raw: String(10e6) },
       { day: '2026-04-01', token: USDC_E,  net_raw: String(5e6)  },
     ])
-    const rows = await getStablecoinSupplyHistory(1)
-    expectRechartsRows(rows as never, ['pathUSD', 'usdc_e'])
+    const data = await getStablecoinSupplyHistory(1)
+    expectPivotContract(
+      data.days as never,
+      data.tokens.map(t => ({ key: t.address })),
+    )
   })
 })
 

@@ -54,7 +54,7 @@ export default async function StablecoinsPage() {
       </div>
 
       {/* Supply chart */}
-      {supplyHistory.length > 0 && (
+      {supplyHistory.days.length > 0 && (
         <div className="bg-tempo-card border border-tempo-border rounded-lg p-6 mb-8">
           <h2 className="text-base font-medium text-white mb-4">
             Circulating Supply (30d)
@@ -64,7 +64,7 @@ export default async function StablecoinsPage() {
       )}
 
       {/* Volume chart */}
-      {daily.length > 0 && (
+      {daily.days.length > 0 && (
         <div className="bg-tempo-card border border-tempo-border rounded-lg p-6 mb-8">
           <h2 className="text-base font-medium text-white mb-4">
             Transfer Volume (30d)

@@ -192,27 +192,26 @@ export async function getDailyStatsCategorized(days = 30): Promise<DailyStatCate
 
 // ─── Stablecoin ──────────────────────────────────────────────────
 export interface StablecoinDailyStat {
-  day: string
-  pathUSD_volume: number   // USD (6-decimal normalized)
-  usdc_e_volume: number
-  pathUSD_transfers: number
-  usdc_e_transfers: number
+  /** One entry per day; each keyed by token address → volume_usd */
+  days:   Array<Record<string, string | number>>
+  /** Tokens sorted by period volume descending */
+  tokens: Array<{ address: string; symbol: string; volume_total: number }>
 }
 
-export async function getStablecoinDailyVolume(days = 30): Promise<StablecoinDailyStat[]> {
-  const key = `analytics:stablecoins:v2:${days}`
-  const cached = await getCached<StablecoinDailyStat[]>(key)
+export async function getStablecoinDailyVolume(days = 30): Promise<StablecoinDailyStat> {
+  const key = `analytics:stablecoins:v3:${days}`
+  const cached = await getCached<StablecoinDailyStat>(key)
   if (cached) return cached
 
   const stableAddrs = await getStablecoinAddresses()
-  if (stableAddrs.length === 0) return []
+  if (stableAddrs.length === 0) return { days: [], tokens: [] }
 
   const addrList = stableAddrs.map(a => `'${a}'`).join(', ')
 
   const rows = await queryClickHouse<{
-    day: string; token: string; volume_raw: string; transfers: string
+    day: string; token: string; volume_raw: string
   }>(`
-    SELECT day, token, sum(volume_raw) AS volume_raw, sum(transfers) AS transfers
+    SELECT day, token, sum(volume_raw) AS volume_raw
     FROM mv_erc20_volume_daily
     WHERE day >= today() - ${days}
       AND token IN (${addrList})
@@ -220,26 +219,33 @@ export async function getStablecoinDailyVolume(days = 30): Promise<StablecoinDai
     ORDER BY day ASC, token ASC
   `)
 
-  // Group by day, then by token within each day
-  const byDay = new Map<string, StablecoinDailyStat>()
+  const tokenTotals = new Map<string, number>()
   for (const r of rows) {
-    const day = String(r.day).slice(0, 10)
-    if (!byDay.has(day)) byDay.set(day, {
-      day,
-      pathUSD_volume: 0, usdc_e_volume: 0,
-      pathUSD_transfers: 0, usdc_e_transfers: 0,
-    })
-    const stat = byDay.get(day)!
-    if (r.token === stableAddrs[0]) {
-      stat.pathUSD_volume = Number(r.volume_raw) / 1e6
-      stat.pathUSD_transfers = Number(r.transfers)
-    } else if (r.token === stableAddrs[1]) {
-      stat.usdc_e_volume = Number(r.volume_raw) / 1e6
-      stat.usdc_e_transfers = Number(r.transfers)
-    }
+    tokenTotals.set(r.token, (tokenTotals.get(r.token) ?? 0) + Number(r.volume_raw) / 1e6)
   }
 
-  const result = Array.from(byDay.values()).sort((a, b) => a.day.localeCompare(b.day))
+  const tokenEntries = await Promise.all(
+    [...tokenTotals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(async ([address, volume_total]) => {
+        const info = await getTokenInfo(address, { skipRPC: true })
+        return { address, symbol: info?.symbol ?? `${address.slice(0, 6)}…${address.slice(-4)}`, volume_total }
+      })
+  )
+
+  const dayMap = new Map<string, Record<string, string | number>>()
+  for (const r of rows) {
+    const day = String(r.day).slice(0, 10)
+    if (!dayMap.has(day)) {
+      const row: Record<string, string | number> = { day }
+      for (const t of tokenEntries) row[t.address] = 0
+      dayMap.set(day, row)
+    }
+    dayMap.get(day)![r.token] = Number(r.volume_raw) / 1e6
+  }
+  const dayRows = [...dayMap.values()].sort((a, b) => String(a.day).localeCompare(String(b.day)))
+
+  const result: StablecoinDailyStat = { days: dayRows, tokens: tokenEntries }
   await setCached(key, result, 900)
   return result
 }
@@ -312,66 +318,71 @@ export async function getStablecoinStats(): Promise<StablecoinStat[]> {
   return result
 }
 
-export interface StablecoinSupplyPoint {
-  day: string
-  pathUSD: number
-  usdc_e: number
+export interface StablecoinSupplyHistory {
+  /** One entry per day; each keyed by token address → cumulative supply (USD) */
+  days:   Array<Record<string, string | number>>
+  /** Tokens sorted by latest-day supply descending */
+  tokens: Array<{ address: string; symbol: string; supply_latest: number }>
 }
 
-const PATHUSD_ADDR = '0x20c0000000000000000000000000000000000000'
-const USDC_E_ADDR  = '0x20c000000000000000000000b9537d11c60e8b50'
-
-export async function getStablecoinSupplyHistory(days = 30): Promise<StablecoinSupplyPoint[]> {
-  const key = `analytics:stablecoin_supply:${days}`
-  const cached = await getCached<StablecoinSupplyPoint[]>(key)
+export async function getStablecoinSupplyHistory(days = 30): Promise<StablecoinSupplyHistory> {
+  const key = `analytics:stablecoin_supply:v2:${days}`
+  const cached = await getCached<StablecoinSupplyHistory>(key)
   if (cached) return cached
+
+  const stableAddrs = await getStablecoinAddresses()
+  if (stableAddrs.length === 0) return { days: [], tokens: [] }
 
   // Fetch N+90 days of daily net changes for accurate cumsum bootstrap
   const fetchDays = days + 90
+  const addrList = stableAddrs.map(a => `'${a}'`).join(', ')
 
   const rows = await queryClickHouse<{ day: string; token: string; net_raw: string }>(`
     SELECT day, token, sum(net_raw) AS net_raw
     FROM mv_stablecoin_supply_daily
     WHERE day >= today() - ${fetchDays}
+      AND token IN (${addrList})
     GROUP BY day, token
     ORDER BY day ASC
   `)
 
-  // Compute running cumulative sum per token
-  const cumsumByToken = new Map<string, number>([
-    [PATHUSD_ADDR, 0],
-    [USDC_E_ADDR,  0],
-  ])
-
-  // Collect all unique days in order
+  const cumsumByToken = new Map<string, number>()
   const daySet = new Set<string>()
-  for (const r of rows) daySet.add(String(r.day).slice(0, 10))
-  const allDays = Array.from(daySet).sort()
-
-  // Build a lookup: day+token → net_raw
   const netByDayToken = new Map<string, number>()
   for (const r of rows) {
-    netByDayToken.set(`${String(r.day).slice(0, 10)}:${r.token}`, Number(r.net_raw))
+    const day = String(r.day).slice(0, 10)
+    daySet.add(day)
+    netByDayToken.set(`${day}:${r.token}`, Number(r.net_raw))
+    if (!cumsumByToken.has(r.token)) cumsumByToken.set(r.token, 0)
   }
+  const allDays = Array.from(daySet).sort()
+  const tokens = [...cumsumByToken.keys()]
 
-  // Walk through all days computing cumsum
-  const allPoints: StablecoinSupplyPoint[] = []
+  // Number(r.net_raw) loses precision above 2^53, but cumulative supply values
+  // for these 6-decimal stablecoins are well within safe integer range.
+  const allPoints: Array<Record<string, string | number>> = []
   for (const day of allDays) {
-    const pathUSDNet = netByDayToken.get(`${day}:${PATHUSD_ADDR}`) ?? 0
-    const usdcENet   = netByDayToken.get(`${day}:${USDC_E_ADDR}`)  ?? 0
-    cumsumByToken.set(PATHUSD_ADDR, cumsumByToken.get(PATHUSD_ADDR)! + pathUSDNet)
-    cumsumByToken.set(USDC_E_ADDR,  cumsumByToken.get(USDC_E_ADDR)!  + usdcENet)
-    // Number(r.net_raw) loses precision above 2^53, but cumulative supply values
-    // for these 6-decimal stablecoins are well within safe integer range.
-    allPoints.push({
-      day,
-      pathUSD: cumsumByToken.get(PATHUSD_ADDR)! / 1e6,
-      usdc_e:  cumsumByToken.get(USDC_E_ADDR)!  / 1e6,
-    })
+    for (const tok of tokens) {
+      const net = netByDayToken.get(`${day}:${tok}`) ?? 0
+      cumsumByToken.set(tok, cumsumByToken.get(tok)! + net)
+    }
+    const row: Record<string, string | number> = { day }
+    for (const tok of tokens) row[tok] = cumsumByToken.get(tok)! / 1e6
+    allPoints.push(row)
   }
 
-  // Return only the last `days` rows
-  const result = allPoints.slice(-days)
+  const dayRows = allPoints.slice(-days)
+  const latest = dayRows[dayRows.length - 1] ?? {}
+  const tokenEntries = await Promise.all(
+    tokens.map(async (address) => {
+      const info = await getTokenInfo(address, { skipRPC: true })
+      const supply_latest = Number(latest[address] ?? 0)
+      return { address, symbol: info?.symbol ?? `${address.slice(0, 6)}…${address.slice(-4)}`, supply_latest }
+    })
+  )
+  tokenEntries.sort((a, b) => b.supply_latest - a.supply_latest)
+
+  const result: StablecoinSupplyHistory = { days: dayRows, tokens: tokenEntries }
   await setCached(key, result, 900)
   return result
 }
