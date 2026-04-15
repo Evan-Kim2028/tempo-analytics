@@ -23,6 +23,11 @@ jest.mock('recharts', () => {
 import { PaymentsNarrative } from '@/components/payments/PaymentsNarrative'
 
 test('renders the payments charts and concentration sections', () => {
+  const dailyByToken = {
+    days: [{ day: '2026-04-08', '0x20c0...0001': 42.75 }],
+    tokens: [{ address: '0x20c0...0001', symbol: 'USDC', total: 42.75 }],
+  }
+
   render(
     <PaymentsNarrative
       daily={[
@@ -41,6 +46,7 @@ test('renders the payments charts and concentration sections', () => {
           mpps_memos: 1,
         },
       ]}
+      dailyByToken={dailyByToken}
       topRecipientsByAmount={[
         { address: '0x03acdc3e7bb74f1c5d29b1118f920e1b5fc62fd7', payment_count: 11, total_amount: 43044.38 },
       ]}

@@ -15,7 +15,7 @@ export default async function PaymentsPage() {
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold text-white">Payments</h1>
             <p className="max-w-3xl text-sm text-tempo-muted">
-              memo-bearing payment activity across Tempo
+              TIP-20 transferWithMemo activity across verified stablecoins
             </p>
           </div>
           <span className="inline-flex items-center rounded-full border border-tempo-border bg-tempo-card px-3 py-1 text-xs text-tempo-muted">
@@ -27,6 +27,7 @@ export default async function PaymentsPage() {
       <PaymentsSummary summary={data.summary} />
       <PaymentsNarrative
         daily={data.daily}
+        dailyByToken={data.dailyByToken}
         topRecipientsByAmount={data.topRecipientsByAmount}
         topRecipientsByCount={data.topRecipientsByCount}
         topSenders={data.topSenders}
