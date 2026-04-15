@@ -84,19 +84,17 @@ ensure_mv_schema() {
   run_sql "$SCRIPT_DIR/../sql/clickhouse/system/_mv_schema.sql"
 }
 
-ensure_mv_schema
-
 fetch_recorded_hash() {
   local name="$1"
   curl -fsS "${CLICKHOUSE_BASE_URL}/?database=${CLICKHOUSE_DB}" \
-    --data-urlencode "query=SELECT ddl_hash FROM ${CLICKHOUSE_DB}._mv_schema FINAL WHERE name='${name}' FORMAT TSV" \
+    --data-binary "SELECT ddl_hash FROM ${CLICKHOUSE_DB}._mv_schema FINAL WHERE name='${name}' FORMAT TSV" \
     || true
 }
 
 fetch_recorded_ddl_text() {
   local name="$1"
   curl -fsS "${CLICKHOUSE_BASE_URL}/?database=${CLICKHOUSE_DB}" \
-    --data-urlencode "query=SELECT ddl_text FROM ${CLICKHOUSE_DB}._mv_schema FINAL WHERE name='${name}' FORMAT TSV" \
+    --data-binary "SELECT ddl_text FROM ${CLICKHOUSE_DB}._mv_schema FINAL WHERE name='${name}' FORMAT TSV" \
     || true
 }
 
@@ -289,6 +287,8 @@ run_sql() {
 
   rm -f "$statements_file"
 }
+
+ensure_mv_schema
 
 if [[ -z "$ONLY" ]]; then
   find "$SCRIPT_DIR/../sql/clickhouse/views" -name "*.sql" | sort | while read -r f; do

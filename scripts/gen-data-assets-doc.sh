@@ -38,22 +38,22 @@ for r in rows:
 PY
 )"
 
-python3 - "$DOC" <<PY
-import re, sys
+export GEN DOC
+python3 - <<'PY'
+import os, re, sys
 from pathlib import Path
-doc_path = Path(sys.argv[1])
+doc_path = Path(os.environ["DOC"])
+gen = os.environ["GEN"]
 text = doc_path.read_text()
-gen = """$GEN"""
-new = re.sub(
-    r"<!-- BEGIN GENERATED -->.*?<!-- END GENERATED -->",
-    "<!-- BEGIN GENERATED -->\n" + gen + "\n<!-- END GENERATED -->",
+pattern = re.compile(r"<!-- BEGIN GENERATED -->.*?<!-- END GENERATED -->", re.DOTALL)
+if not pattern.search(text):
+    print(f"error: GENERATED markers not found in {doc_path}", file=sys.stderr)
+    sys.exit(2)
+new = pattern.sub(
+    lambda m: "<!-- BEGIN GENERATED -->\n" + gen + "\n<!-- END GENERATED -->",
     text,
     count=1,
-    flags=re.DOTALL,
 )
-if new == text:
-    print("error: GENERATED markers not found in $DOC", file=sys.stderr)
-    sys.exit(2)
 doc_path.write_text(new)
 PY
 
