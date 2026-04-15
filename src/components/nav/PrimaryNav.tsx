@@ -1,11 +1,10 @@
 const primaryTabs = [
   { href: '/analytics', label: 'Analytics' },
   { href: '/stablecoins', label: 'Stablecoins' },
+  { href: '/payments', label: 'Payments' },
   { href: '/dex', label: 'DEX' },
   { href: '/bridges', label: 'Bridges' },
-  { href: '/payments', label: 'Payments' },
   { href: '/nfts', label: 'NFTs' },
-  { href: '/developers', label: 'Developers' },
 ]
 
 export function PrimaryNav() {
