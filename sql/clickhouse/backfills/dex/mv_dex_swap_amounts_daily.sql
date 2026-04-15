@@ -1,6 +1,11 @@
--- sql/clickhouse/backfills/dex/mv_dex_swap_amounts_daily.sql
--- Backfill for tidx_4217.mv_dex_swap_amounts_daily
--- Apply after sql/clickhouse/views/dex/mv_dex_swap_amounts_daily.sql
+-- @name:         mv_dex_swap_amounts_daily
+-- @domain:       dex
+-- @kind:         backfill
+-- @purpose:      Historical backfill for mv_dex_swap_amounts_daily.
+-- @pairs:        sql/clickhouse/views/dex/mv_dex_swap_amounts_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 INSERT INTO tidx_4217.mv_dex_swap_amounts_daily
 SELECT

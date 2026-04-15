@@ -43,12 +43,12 @@ export async function getDailyStats(days = 30): Promise<DailyStat[]> {
     SELECT
       s.day                             AS day,
       sum(s.txs)                        AS txs,
-      uniqMerge(u.unique_senders_state) AS unique_senders,
+      any(u.unique_senders)              AS unique_senders,
       sum(s.batch_txs)                  AS batch_txs,
       sum(s.sponsored_txs)              AS sponsored_txs
     FROM mv_daily_stats s
     ANY LEFT JOIN (
-      SELECT day, uniqMerge(unique_senders_state) AS unique_senders_state
+      SELECT day, uniqMerge(unique_senders_state) AS unique_senders
       FROM mv_daily_uniq
       GROUP BY day
     ) u ON s.day = u.day
@@ -192,27 +192,26 @@ export async function getDailyStatsCategorized(days = 30): Promise<DailyStatCate
 
 // ─── Stablecoin ──────────────────────────────────────────────────
 export interface StablecoinDailyStat {
-  day: string
-  pathUSD_volume: number   // USD (6-decimal normalized)
-  usdc_e_volume: number
-  pathUSD_transfers: number
-  usdc_e_transfers: number
+  /** One entry per day; each keyed by token address → volume_usd */
+  days:   Array<Record<string, string | number>>
+  /** Tokens sorted by period volume descending */
+  tokens: Array<{ address: string; symbol: string; volume_total: number }>
 }
 
-export async function getStablecoinDailyVolume(days = 30): Promise<StablecoinDailyStat[]> {
-  const key = `analytics:stablecoins:v2:${days}`
-  const cached = await getCached<StablecoinDailyStat[]>(key)
+export async function getStablecoinDailyVolume(days = 30): Promise<StablecoinDailyStat> {
+  const key = `analytics:stablecoins:v3:${days}`
+  const cached = await getCached<StablecoinDailyStat>(key)
   if (cached) return cached
 
   const stableAddrs = await getStablecoinAddresses()
-  if (stableAddrs.length === 0) return []
+  if (stableAddrs.length === 0) return { days: [], tokens: [] }
 
   const addrList = stableAddrs.map(a => `'${a}'`).join(', ')
 
   const rows = await queryClickHouse<{
-    day: string; token: string; volume_raw: string; transfers: string
+    day: string; token: string; volume_raw: string
   }>(`
-    SELECT day, token, sum(volume_raw) AS volume_raw, sum(transfers) AS transfers
+    SELECT day, token, sum(volume_raw) AS volume_raw
     FROM mv_erc20_volume_daily
     WHERE day >= today() - ${days}
       AND token IN (${addrList})
@@ -220,26 +219,33 @@ export async function getStablecoinDailyVolume(days = 30): Promise<StablecoinDai
     ORDER BY day ASC, token ASC
   `)
 
-  // Group by day, then by token within each day
-  const byDay = new Map<string, StablecoinDailyStat>()
+  const tokenTotals = new Map<string, number>()
   for (const r of rows) {
-    const day = String(r.day).slice(0, 10)
-    if (!byDay.has(day)) byDay.set(day, {
-      day,
-      pathUSD_volume: 0, usdc_e_volume: 0,
-      pathUSD_transfers: 0, usdc_e_transfers: 0,
-    })
-    const stat = byDay.get(day)!
-    if (r.token === stableAddrs[0]) {
-      stat.pathUSD_volume = Number(r.volume_raw) / 1e6
-      stat.pathUSD_transfers = Number(r.transfers)
-    } else if (r.token === stableAddrs[1]) {
-      stat.usdc_e_volume = Number(r.volume_raw) / 1e6
-      stat.usdc_e_transfers = Number(r.transfers)
-    }
+    tokenTotals.set(r.token, (tokenTotals.get(r.token) ?? 0) + Number(r.volume_raw) / 1e6)
   }
 
-  const result = Array.from(byDay.values()).sort((a, b) => a.day.localeCompare(b.day))
+  const tokenEntries = await Promise.all(
+    [...tokenTotals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(async ([address, volume_total]) => {
+        const info = await getTokenInfo(address, { skipRPC: true })
+        return { address, symbol: info?.symbol ?? `${address.slice(0, 6)}…${address.slice(-4)}`, volume_total }
+      })
+  )
+
+  const dayMap = new Map<string, Record<string, string | number>>()
+  for (const r of rows) {
+    const day = String(r.day).slice(0, 10)
+    if (!dayMap.has(day)) {
+      const row: Record<string, string | number> = { day }
+      for (const t of tokenEntries) row[t.address] = 0
+      dayMap.set(day, row)
+    }
+    dayMap.get(day)![r.token] = Number(r.volume_raw) / 1e6
+  }
+  const dayRows = [...dayMap.values()].sort((a, b) => String(a.day).localeCompare(String(b.day)))
+
+  const result: StablecoinDailyStat = { days: dayRows, tokens: tokenEntries }
   await setCached(key, result, 900)
   return result
 }
@@ -312,66 +318,71 @@ export async function getStablecoinStats(): Promise<StablecoinStat[]> {
   return result
 }
 
-export interface StablecoinSupplyPoint {
-  day: string
-  pathUSD: number
-  usdc_e: number
+export interface StablecoinSupplyHistory {
+  /** One entry per day; each keyed by token address → cumulative supply (USD) */
+  days:   Array<Record<string, string | number>>
+  /** Tokens sorted by latest-day supply descending */
+  tokens: Array<{ address: string; symbol: string; supply_latest: number }>
 }
 
-const PATHUSD_ADDR = '0x20c0000000000000000000000000000000000000'
-const USDC_E_ADDR  = '0x20c000000000000000000000b9537d11c60e8b50'
-
-export async function getStablecoinSupplyHistory(days = 30): Promise<StablecoinSupplyPoint[]> {
-  const key = `analytics:stablecoin_supply:${days}`
-  const cached = await getCached<StablecoinSupplyPoint[]>(key)
+export async function getStablecoinSupplyHistory(days = 30): Promise<StablecoinSupplyHistory> {
+  const key = `analytics:stablecoin_supply:v2:${days}`
+  const cached = await getCached<StablecoinSupplyHistory>(key)
   if (cached) return cached
+
+  const stableAddrs = await getStablecoinAddresses()
+  if (stableAddrs.length === 0) return { days: [], tokens: [] }
 
   // Fetch N+90 days of daily net changes for accurate cumsum bootstrap
   const fetchDays = days + 90
+  const addrList = stableAddrs.map(a => `'${a}'`).join(', ')
 
   const rows = await queryClickHouse<{ day: string; token: string; net_raw: string }>(`
     SELECT day, token, sum(net_raw) AS net_raw
     FROM mv_stablecoin_supply_daily
     WHERE day >= today() - ${fetchDays}
+      AND token IN (${addrList})
     GROUP BY day, token
     ORDER BY day ASC
   `)
 
-  // Compute running cumulative sum per token
-  const cumsumByToken = new Map<string, number>([
-    [PATHUSD_ADDR, 0],
-    [USDC_E_ADDR,  0],
-  ])
-
-  // Collect all unique days in order
+  const cumsumByToken = new Map<string, number>()
   const daySet = new Set<string>()
-  for (const r of rows) daySet.add(String(r.day).slice(0, 10))
-  const allDays = Array.from(daySet).sort()
-
-  // Build a lookup: day+token → net_raw
   const netByDayToken = new Map<string, number>()
   for (const r of rows) {
-    netByDayToken.set(`${String(r.day).slice(0, 10)}:${r.token}`, Number(r.net_raw))
+    const day = String(r.day).slice(0, 10)
+    daySet.add(day)
+    netByDayToken.set(`${day}:${r.token}`, Number(r.net_raw))
+    if (!cumsumByToken.has(r.token)) cumsumByToken.set(r.token, 0)
   }
+  const allDays = Array.from(daySet).sort()
+  const tokens = [...cumsumByToken.keys()]
 
-  // Walk through all days computing cumsum
-  const allPoints: StablecoinSupplyPoint[] = []
+  // Number(r.net_raw) loses precision above 2^53, but cumulative supply values
+  // for these 6-decimal stablecoins are well within safe integer range.
+  const allPoints: Array<Record<string, string | number>> = []
   for (const day of allDays) {
-    const pathUSDNet = netByDayToken.get(`${day}:${PATHUSD_ADDR}`) ?? 0
-    const usdcENet   = netByDayToken.get(`${day}:${USDC_E_ADDR}`)  ?? 0
-    cumsumByToken.set(PATHUSD_ADDR, cumsumByToken.get(PATHUSD_ADDR)! + pathUSDNet)
-    cumsumByToken.set(USDC_E_ADDR,  cumsumByToken.get(USDC_E_ADDR)!  + usdcENet)
-    // Number(r.net_raw) loses precision above 2^53, but cumulative supply values
-    // for these 6-decimal stablecoins are well within safe integer range.
-    allPoints.push({
-      day,
-      pathUSD: cumsumByToken.get(PATHUSD_ADDR)! / 1e6,
-      usdc_e:  cumsumByToken.get(USDC_E_ADDR)!  / 1e6,
-    })
+    for (const tok of tokens) {
+      const net = netByDayToken.get(`${day}:${tok}`) ?? 0
+      cumsumByToken.set(tok, cumsumByToken.get(tok)! + net)
+    }
+    const row: Record<string, string | number> = { day }
+    for (const tok of tokens) row[tok] = cumsumByToken.get(tok)! / 1e6
+    allPoints.push(row)
   }
 
-  // Return only the last `days` rows
-  const result = allPoints.slice(-days)
+  const dayRows = allPoints.slice(-days)
+  const latest = dayRows[dayRows.length - 1] ?? {}
+  const tokenEntries = await Promise.all(
+    tokens.map(async (address) => {
+      const info = await getTokenInfo(address, { skipRPC: true })
+      const supply_latest = Number(latest[address] ?? 0)
+      return { address, symbol: info?.symbol ?? `${address.slice(0, 6)}…${address.slice(-4)}`, supply_latest }
+    })
+  )
+  tokenEntries.sort((a, b) => b.supply_latest - a.supply_latest)
+
+  const result: StablecoinSupplyHistory = { days: dayRows, tokens: tokenEntries }
   await setCached(key, result, 900)
   return result
 }
@@ -651,6 +662,58 @@ export async function getFeeTokenDailyStats(days = 30): Promise<FeeTokenDailySta
   return result
 }
 
+// ─── Fee token full breakdown (all tokens, dynamic) ──────────────
+
+export interface FeeTokenAllDailyStat {
+  /** One entry per day; each keyed by fee_token address → tx count */
+  days:   Array<Record<string, string | number>>
+  /** Tokens sorted by all-period total descending */
+  tokens: Array<{ address: string; symbol: string; total: number }>
+}
+
+export async function getFeeTokenAllDailyStats(days = 30): Promise<FeeTokenAllDailyStat> {
+  const key = `analytics:fee_token_all_daily:${days}`
+  const cached = await getCached<FeeTokenAllDailyStat>(key)
+  if (cached) return cached
+
+  const rows = await queryClickHouse<{ day: string; fee_token: string; txs: string }>(`
+    SELECT day, fee_token, sum(txs) AS txs
+    FROM mv_fee_token_daily
+    WHERE day >= today() - ${days}
+    GROUP BY day, fee_token
+    ORDER BY day ASC, txs DESC
+  `)
+
+  // Aggregate totals per token across the period
+  const tokenTotals = new Map<string, number>()
+  for (const r of rows) {
+    tokenTotals.set(r.fee_token, (tokenTotals.get(r.fee_token) ?? 0) + Number(r.txs))
+  }
+
+  // Resolve symbols; skip RPC for unknown tokens (fee tokens are typically whitelisted)
+  const tokenEntries = await Promise.all(
+    [...tokenTotals.entries()].map(async ([address, total]) => {
+      const info = await getTokenInfo(address, { skipRPC: true })
+      return { address, symbol: info?.symbol ?? `${address.slice(0, 6)}…${address.slice(-4)}`, total }
+    })
+  )
+  // Sort tokens by total descending
+  tokenEntries.sort((a, b) => b.total - a.total)
+
+  // Group rows by day
+  const dayMap = new Map<string, Record<string, string | number>>()
+  for (const r of rows) {
+    const day = String(r.day).slice(0, 10)
+    if (!dayMap.has(day)) dayMap.set(day, { day })
+    dayMap.get(day)![r.fee_token] = Number(r.txs)
+  }
+  const dayRows = [...dayMap.values()].sort((a, b) => String(a.day).localeCompare(String(b.day)))
+
+  const result: FeeTokenAllDailyStat = { days: dayRows, tokens: tokenEntries }
+  await setCached(key, result, 900)
+  return result
+}
+
 export interface ProtocolDexDailyStat {
   day: string
   swaps: number
@@ -682,6 +745,79 @@ export async function getProtocolDexDailyStats(days = 30): Promise<ProtocolDexDa
   return result
 }
 
+// ─── Protocol DEX token daily breakdown ──────────────────────────
+
+export interface ProtocolDexTokenDailyStat {
+  /** One entry per day; each keyed by token address → volume_usd */
+  days:   Array<Record<string, string | number>>
+  /** Top tokens sorted by period volume descending; last entry may be "others" */
+  tokens: Array<{ address: string; symbol: string; volume_total: number }>
+}
+
+const TOP_PROTOCOL_DEX_TOKENS = 8
+
+export async function getProtocolDexTokenDailyStats(days = 30): Promise<ProtocolDexTokenDailyStat> {
+  const key = `analytics:protocol_dex:token_daily:${days}`
+  const cached = await getCached<ProtocolDexTokenDailyStat>(key)
+  if (cached) return cached
+
+  const rows = await queryClickHouse<{
+    day: string; token: string; volume_raw: string
+  }>(`
+    SELECT day, token, sum(volume_raw) AS volume_raw
+    FROM mv_protocol_dex_pool_daily
+    WHERE day >= today() - ${days}
+    GROUP BY day, token
+    ORDER BY day ASC
+  `)
+
+  // Aggregate totals per token
+  const tokenTotals = new Map<string, number>()
+  for (const r of rows) {
+    tokenTotals.set(r.token, (tokenTotals.get(r.token) ?? 0) + Number(r.volume_raw))
+  }
+
+  // Sort by total desc, take top N
+  const sorted = [...tokenTotals.entries()].sort((a, b) => b[1] - a[1])
+  const topTokenAddrs = new Set(sorted.slice(0, TOP_PROTOCOL_DEX_TOKENS).map(([a]) => a))
+  const hasOthers = sorted.length > TOP_PROTOCOL_DEX_TOKENS
+
+  // Resolve symbols for top tokens via RPC if not in local lists
+  const tokenEntries = await Promise.all(
+    sorted.slice(0, TOP_PROTOCOL_DEX_TOKENS).map(async ([address, rawTotal]) => {
+      const info = await getTokenInfo(address)
+      return {
+        address,
+        symbol: info?.symbol ?? `${address.slice(0, 6)}…${address.slice(-4)}`,
+        volume_total: rawTotal / 1e6,
+      }
+    })
+  )
+
+  if (hasOthers) {
+    const othersTotal = sorted.slice(TOP_PROTOCOL_DEX_TOKENS).reduce((s, [, v]) => s + v, 0)
+    tokenEntries.push({ address: '__others__', symbol: 'Others', volume_total: othersTotal / 1e6 })
+  }
+
+  // Group rows by day
+  const dayMap = new Map<string, Record<string, string | number>>()
+  for (const r of rows) {
+    const day = String(r.day).slice(0, 10)
+    if (!dayMap.has(day)) dayMap.set(day, { day })
+    const entry = dayMap.get(day)!
+    if (topTokenAddrs.has(r.token)) {
+      entry[r.token] = (Number(entry[r.token] ?? 0)) + Number(r.volume_raw) / 1e6
+    } else if (hasOthers) {
+      entry['__others__'] = (Number(entry['__others__'] ?? 0)) + Number(r.volume_raw) / 1e6
+    }
+  }
+  const dayRows = [...dayMap.values()].sort((a, b) => String(a.day).localeCompare(String(b.day)))
+
+  const result: ProtocolDexTokenDailyStat = { days: dayRows, tokens: tokenEntries }
+  await setCached(key, result, 900)
+  return result
+}
+
 // ─── Protocol DEX Pool Explorer ──────────────────────────────────
 
 export interface ProtocolDexPool {
@@ -692,6 +828,9 @@ export interface ProtocolDexPool {
   volume_usd:  number   // volume_raw / 1e6 when whitelisted, else 0
   avg_trade:   number   // volume_usd / swaps_30d
   whitelisted: boolean  // true when getTokenInfo returns non-null
+  dau_1d:      number   // unique takers in last 1 day
+  dau_7d:      number   // unique takers in last 7 days
+  dau_30d:     number   // unique takers in last 30 days
 }
 
 export interface ProtocolDexTrade {
@@ -707,29 +846,47 @@ export async function getProtocolDexPools(days = 30): Promise<ProtocolDexPool[]>
   const cached = await getCached<ProtocolDexPool[]>(key)
   if (cached) return cached
 
-  const rows = await queryClickHouse<{
-    pool_id: string; token: string; swaps: string; volume_raw: string
-  }>(`
-    SELECT pool_id, token, sum(swaps) AS swaps, sum(volume_raw) AS volume_raw
-    FROM mv_protocol_dex_pool_daily
-    WHERE day >= today() - ${days}
-    GROUP BY pool_id, token
-    ORDER BY volume_raw DESC
-  `)
+  const [rows, dauRows] = await Promise.all([
+    queryClickHouse<{ pool_id: string; token: string; swaps: string; volume_raw: string }>(`
+      SELECT pool_id, token, sum(swaps) AS swaps, sum(volume_raw) AS volume_raw
+      FROM mv_protocol_dex_pool_daily
+      WHERE day >= today() - ${days}
+      GROUP BY pool_id, token
+      ORDER BY volume_raw DESC
+      LIMIT 30
+    `),
+    queryClickHouse<{ pool_id: string; token: string; dau_1d: string; dau_7d: string; dau_30d: string }>(`
+      SELECT
+        pool_id, token,
+        uniqMergeIf(dau_state, day >= today() - 1)  AS dau_1d,
+        uniqMergeIf(dau_state, day >= today() - 7)  AS dau_7d,
+        uniqMerge(dau_state)                         AS dau_30d
+      FROM mv_protocol_dex_pool_dau_daily
+      WHERE day >= today() - 30
+      GROUP BY pool_id, token
+    `),
+  ])
+
+  const dauMap = new Map(dauRows.map(r => [
+    `${r.pool_id}:${r.token}`,
+    { dau_1d: Number(r.dau_1d), dau_7d: Number(r.dau_7d), dau_30d: Number(r.dau_30d) },
+  ]))
 
   const result: ProtocolDexPool[] = await Promise.all(rows.map(async r => {
     const info = await getTokenInfo(r.token)
-    const whitelisted = info !== null
     const swaps_30d = Number(r.swaps)
-    const volume_usd = whitelisted ? Number(r.volume_raw) / 1e6 : 0
+    // volume_raw is always 6-decimal (pathUSD-denominated), so always safe to divide by 1e6
+    const volume_usd = Number(r.volume_raw) / 1e6
+    const dau = dauMap.get(`${r.pool_id}:${r.token}`) ?? { dau_1d: 0, dau_7d: 0, dau_30d: 0 }
     return {
-      poolId:    Number(r.pool_id),
-      token:     r.token,
-      symbol:    info?.symbol ?? `${r.token.slice(0, 6)}…${r.token.slice(-4)}`,
+      poolId:      Number(r.pool_id),
+      token:       r.token,
+      symbol:      info?.symbol ?? `${r.token.slice(0, 6)}…${r.token.slice(-4)}`,
       swaps_30d,
       volume_usd,
-      avg_trade: swaps_30d > 0 ? volume_usd / swaps_30d : 0,
-      whitelisted,
+      avg_trade:   swaps_30d > 0 ? volume_usd / swaps_30d : 0,
+      whitelisted: info !== null,
+      ...dau,
     }
   }))
 
@@ -838,28 +995,29 @@ export async function getTopNFTMinters(limit = 50): Promise<TopNFTMinter[]> {
   const cached = await getCached<TopNFTMinter[]>(key)
   if (cached) return cached
 
-  const rows = await queryClickHouse<{
-    minter: string; mints: string; pct_total: string; collections: string
-  }>(`
-    SELECT
-      '0x' || substring(topic2, 27)                          AS minter,
-      count()                                                AS mints,
-      round(count() * 100.0 / (
-        SELECT count() FROM logs WHERE ${NFT_MINT_FILTER}
-      ), 2)                                                  AS pct_total,
-      uniq(address)                                          AS collections
-    FROM logs
-    WHERE ${NFT_MINT_FILTER}
-    GROUP BY topic2
-    ORDER BY mints DESC
-    LIMIT ${limit}
-  `)
+  const [rows, totalRows] = await Promise.all([
+    queryClickHouse<{ minter: string; mints: string; collections: string }>(`
+      SELECT
+        '0x' || substring(topic2, 27) AS minter,
+        count()                       AS mints,
+        uniq(address)                 AS collections
+      FROM logs
+      WHERE ${NFT_MINT_FILTER}
+      GROUP BY topic2
+      ORDER BY mints DESC
+      LIMIT ${limit}
+    `),
+    queryClickHouse<{ total: string }>(`
+      SELECT count() AS total FROM logs WHERE ${NFT_MINT_FILTER}
+    `),
+  ])
 
+  const total = Number(totalRows[0]?.total ?? 0)
   const result: TopNFTMinter[] = rows.map((r, i) => ({
     rank:        i + 1,
     minter:      r.minter,
     mints:       Number(r.mints),
-    pct_total:   Number(r.pct_total),
+    pct_total:   total > 0 ? Math.round(Number(r.mints) * 1000 / total) / 10 : 0,
     collections: Number(r.collections),
   }))
 

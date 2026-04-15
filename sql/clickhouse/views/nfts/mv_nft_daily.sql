@@ -1,7 +1,13 @@
--- sql/clickhouse/views/nfts/mv_nft_daily.sql
--- Domain: nfts — daily ERC-721 transfer activity by collection
--- topic3 IS NOT NULL distinguishes ERC-721 from ERC-20 (same Transfer selector)
--- Apply with scripts/apply-clickhouse-assets.sh
+-- @name:         mv_nft_daily
+-- @domain:       nfts
+-- @kind:         materialized_view
+-- @purpose:      Daily ERC-721 transfer activity by collection
+-- @upstream:     tidx_4217.logs
+-- @consumers:    src/app/analytics/page.tsx, src/app/nfts/page.tsx, src/lib/analytics.ts
+-- @backfill:     sql/clickhouse/backfills/nfts/mv_nft_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 CREATE TABLE IF NOT EXISTS tidx_4217.mv_nft_daily
 (

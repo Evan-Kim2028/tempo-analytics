@@ -1,6 +1,11 @@
--- sql/clickhouse/backfills/dex/mv_dex_daily.sql
--- Backfill for tidx_4217.mv_dex_daily
--- Apply after sql/clickhouse/views/dex/mv_dex_daily.sql
+-- @name:         mv_dex_daily
+-- @domain:       dex
+-- @kind:         backfill
+-- @purpose:      Historical backfill for mv_dex_daily.
+-- @pairs:        sql/clickhouse/views/dex/mv_dex_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 INSERT INTO tidx_4217.mv_dex_daily
 SELECT toDate(block_timestamp), address, count()

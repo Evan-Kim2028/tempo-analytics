@@ -1,0 +1,457 @@
+import { queryClickHouse } from './clickhouse'
+import { getCached, setCached } from './cache'
+import { getTokenInfo } from './tokens'
+import {
+  BRIDGE_CONTRACTS,
+  BRIDGE_PROVIDERS,
+  getBridgeTokenAddresses,
+} from './bridge-registry'
+
+const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+const ZERO_TOPIC = '0x0000000000000000000000000000000000000000000000000000000000000000'
+const FALLBACK_DECIMALS = 6
+const CACHE_TTL_SECONDS = 900
+
+interface RawBridgeTransferRow {
+  block_timestamp: string
+  address: string
+  topic1: string
+  topic2: string
+  data: string
+  tx_hash: string
+}
+
+interface RawBridgeAdapterTouchRow {
+  tx_hash: string
+  address: string
+}
+
+type BridgeTransferClassification = 'strict_user_flow' | 'internal_rebalance' | 'unknown'
+
+interface ClassifiedBridgeTransfer {
+  day: string
+  provider: string
+  provider_label: string
+  asset: string
+  token: string
+  user: string
+  tx_hash: string
+  direction: 'inflow' | 'outflow'
+  amount: number
+  classification: BridgeTransferClassification
+  headline: boolean
+}
+
+interface BridgeFlowSnapshot {
+  classifications: ClassifiedBridgeTransfer[]
+}
+
+interface BridgeFlowAccumulator {
+  inflow: number
+  outflow: number
+  users: Set<string>
+  txHashes: Set<string>
+}
+
+export interface DailyBridgeProviderFlow {
+  day: string
+  provider: string
+  provider_label: string
+  gross_inflow: number
+  gross_outflow: number
+  net_flow: number
+  tx_count: number
+  unique_users: number
+}
+
+export interface DailyBridgeProviderAssetFlow {
+  day: string
+  provider: string
+  provider_label: string
+  asset: string
+  token: string
+  gross_inflow: number
+  gross_outflow: number
+  net_flow: number
+  tx_count: number
+  unique_users: number
+}
+
+const bridgeTokenContracts = BRIDGE_CONTRACTS.filter(contract => contract.role === 'token')
+const bridgeTokenAddresses = getBridgeTokenAddresses()
+const bridgeOwnedAddresses = new Set(BRIDGE_CONTRACTS.map(contract => contract.address.toLowerCase()))
+const bridgeFlowSnapshotCacheKeyPrefix = 'analytics:bridge_flow_classifications'
+
+const providerLabelById = new Map(BRIDGE_PROVIDERS.map(provider => [provider.id, provider.label]))
+const tokenContractByAddress = new Map(
+  bridgeTokenContracts.map(contract => [contract.address.toLowerCase(), contract]),
+)
+const inFlightBridgeFlowSnapshots = new Map<number, Promise<BridgeFlowSnapshot>>()
+
+function isBridgeFlowSnapshot(value: unknown): value is BridgeFlowSnapshot {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'classifications' in value &&
+    Array.isArray((value as BridgeFlowSnapshot).classifications)
+  )
+}
+
+function getDayFromTimestamp(blockTimestamp: string): string {
+  return String(blockTimestamp).slice(0, 10)
+}
+
+function topicToAddress(topic: string): string {
+  return `0x${topic.slice(-40).toLowerCase()}`
+}
+
+function parseAmount(data: string): bigint {
+  try {
+    return BigInt(data)
+  } catch {
+    return BigInt(0)
+  }
+}
+
+function amountToFloat(amount: bigint, decimals: number): number {
+  return Number(amount) / (10 ** decimals)
+}
+
+function isStrictMintOrBurn(row: RawBridgeTransferRow): boolean {
+  const topic1 = row.topic1.toLowerCase()
+  const topic2 = row.topic2.toLowerCase()
+  return (
+    (topic1 === ZERO_TOPIC && topic2 !== ZERO_TOPIC) ||
+    (topic2 === ZERO_TOPIC && topic1 !== ZERO_TOPIC)
+  )
+}
+
+function classifyBridgeTransfer(
+  row: RawBridgeTransferRow,
+  decimalsByToken: Map<string, number>,
+  adapterTxHashesByProviderAsset: Map<string, Set<string>>,
+): ClassifiedBridgeTransfer | null {
+  const token = row.address.toLowerCase()
+  const contract = tokenContractByAddress.get(token)
+  if (!contract || !isStrictMintOrBurn(row)) return null
+
+  const topic1 = row.topic1.toLowerCase()
+  const topic2 = row.topic2.toLowerCase()
+  const isMint = topic1 === ZERO_TOPIC
+  const user = isMint ? topicToAddress(topic2) : topicToAddress(topic1)
+  const amountRaw = parseAmount(row.data)
+  const decimals = decimalsByToken.get(token) ?? FALLBACK_DECIMALS
+  const adapterKey = `${contract.provider}:${contract.asset}`
+  const hasProviderAdapterTouch =
+    adapterTxHashesByProviderAsset.get(adapterKey)?.has(row.tx_hash.toLowerCase()) ?? false
+  const isBridgeOwnedRecipient = bridgeOwnedAddresses.has(user)
+
+  let classification: BridgeTransferClassification
+  if (!hasProviderAdapterTouch) {
+    classification = 'unknown'
+  } else if (isBridgeOwnedRecipient) {
+    classification = 'internal_rebalance'
+  } else {
+    classification = 'strict_user_flow'
+  }
+
+  return {
+    day: getDayFromTimestamp(row.block_timestamp),
+    provider: contract.provider,
+    provider_label: providerLabelById.get(contract.provider) ?? contract.provider,
+    asset: contract.asset,
+    token: contract.address,
+    user,
+    tx_hash: row.tx_hash.toLowerCase(),
+    direction: isMint ? 'inflow' : 'outflow',
+    amount: amountToFloat(amountRaw, decimals),
+    classification,
+    headline: classification === 'strict_user_flow',
+  }
+}
+
+async function loadDecimalsByToken(tokens: string[]): Promise<Map<string, number>> {
+  const uniqueTokens = [...new Set(tokens)]
+  const tokenInfos = await Promise.all(
+    uniqueTokens.map(async token => {
+      const info = await getTokenInfo(token).catch(() => null)
+      return [token, info?.decimals ?? FALLBACK_DECIMALS] as const
+    }),
+  )
+
+  return new Map(tokenInfos)
+}
+
+async function fetchBridgeTransferRows(days: number): Promise<RawBridgeTransferRow[]> {
+  const addrList = bridgeTokenAddresses.map(address => `'${address}'`).join(', ')
+
+  return queryClickHouse<RawBridgeTransferRow>(`
+    SELECT
+      block_timestamp,
+      address,
+      topic1,
+      topic2,
+      data,
+      tx_hash
+    FROM logs
+    WHERE block_timestamp >= now() - INTERVAL ${days} DAY
+      AND selector = '${TRANSFER_TOPIC}'
+      AND address IN (${addrList})
+      AND (
+        (topic1 = '${ZERO_TOPIC}' AND topic2 != '${ZERO_TOPIC}')
+        OR
+        (topic2 = '${ZERO_TOPIC}' AND topic1 != '${ZERO_TOPIC}')
+      )
+    ORDER BY block_timestamp ASC
+  `)
+}
+
+async function fetchBridgeAdapterTouchRows(days: number): Promise<RawBridgeAdapterTouchRow[]> {
+  const adapterAddresses = BRIDGE_CONTRACTS
+    .filter(contract => contract.role === 'adapter')
+    .map(contract => `'${contract.address}'`)
+    .join(', ')
+
+  return queryClickHouse<RawBridgeAdapterTouchRow>(`
+    SELECT DISTINCT
+      tx_hash,
+      address
+    FROM logs
+    WHERE block_timestamp >= now() - INTERVAL ${days} DAY
+      AND address IN (${adapterAddresses})
+    ORDER BY tx_hash ASC
+  `)
+}
+
+function buildAdapterTxHashesByProviderAsset(rows: RawBridgeAdapterTouchRow[]): Map<string, Set<string>> {
+  const byProviderAsset = new Map<string, Set<string>>()
+
+  for (const row of rows) {
+    const contract = BRIDGE_CONTRACTS.find(
+      candidate => candidate.address.toLowerCase() === row.address.toLowerCase() && candidate.role === 'adapter',
+    )
+    if (!contract) continue
+
+    const key = `${contract.provider}:${contract.asset}`
+    const txHash = row.tx_hash.toLowerCase()
+    const set = byProviderAsset.get(key) ?? new Set<string>()
+    set.add(txHash)
+    byProviderAsset.set(key, set)
+  }
+
+  return byProviderAsset
+}
+
+function rollupBridgeTransfers(events: ClassifiedBridgeTransfer[]): {
+  providerRows: DailyBridgeProviderFlow[]
+  assetRows: DailyBridgeProviderAssetFlow[]
+} {
+  const providerByDay = new Map<string, BridgeFlowAccumulator>()
+  const assetByDay = new Map<string, BridgeFlowAccumulator>()
+
+  for (const event of events) {
+    const providerKey = `${event.day}:${event.provider}`
+    const assetKey = `${event.day}:${event.provider}:${event.token}`
+
+    const providerAcc = providerByDay.get(providerKey) ?? {
+      inflow: 0,
+      outflow: 0,
+      users: new Set<string>(),
+      txHashes: new Set<string>(),
+    }
+    const assetAcc = assetByDay.get(assetKey) ?? {
+      inflow: 0,
+      outflow: 0,
+      users: new Set<string>(),
+      txHashes: new Set<string>(),
+    }
+
+    if (event.direction === 'inflow') {
+      providerAcc.inflow += event.amount
+      assetAcc.inflow += event.amount
+    } else {
+      providerAcc.outflow += event.amount
+      assetAcc.outflow += event.amount
+    }
+
+    providerAcc.users.add(event.user)
+    assetAcc.users.add(event.user)
+    providerAcc.txHashes.add(event.tx_hash)
+    assetAcc.txHashes.add(event.tx_hash)
+    providerByDay.set(providerKey, providerAcc)
+    assetByDay.set(assetKey, assetAcc)
+  }
+
+  const providerRows = [...providerByDay.entries()]
+    .map(([key, acc]) => {
+      const [day, provider] = key.split(':')
+      return {
+        day,
+        provider,
+        provider_label: providerLabelById.get(provider as typeof BRIDGE_PROVIDERS[number]['id']) ?? provider,
+        gross_inflow: acc.inflow,
+        gross_outflow: acc.outflow,
+        net_flow: acc.inflow - acc.outflow,
+        tx_count: acc.txHashes.size,
+        unique_users: acc.users.size,
+      }
+    })
+    .sort((a, b) => a.day.localeCompare(b.day) || a.provider.localeCompare(b.provider))
+
+  const assetRows = [...assetByDay.entries()]
+    .map(([key, acc]) => {
+      const [day, provider, token] = key.split(':')
+      const contract = tokenContractByAddress.get(token)
+      return {
+        day,
+        provider,
+        provider_label: providerLabelById.get(provider as typeof BRIDGE_PROVIDERS[number]['id']) ?? provider,
+        asset: contract?.asset ?? token,
+        token,
+        gross_inflow: acc.inflow,
+        gross_outflow: acc.outflow,
+        net_flow: acc.inflow - acc.outflow,
+        tx_count: acc.txHashes.size,
+        unique_users: acc.users.size,
+      }
+    })
+    .sort(
+      (a, b) =>
+        a.day.localeCompare(b.day) ||
+        a.provider.localeCompare(b.provider) ||
+        a.asset.localeCompare(b.asset) ||
+        a.token.localeCompare(b.token),
+    )
+
+  return { providerRows, assetRows }
+}
+
+async function getBridgeTransferClassifications(days: number): Promise<ClassifiedBridgeTransfer[]> {
+  const cacheKey = `${bridgeFlowSnapshotCacheKeyPrefix}:${days}`
+  const cached = await getCached<BridgeFlowSnapshot>(cacheKey)
+  if (cached) {
+    if (Array.isArray(cached)) return cached
+    if (isBridgeFlowSnapshot(cached)) return cached.classifications
+  }
+
+  const inFlight = inFlightBridgeFlowSnapshots.get(days)
+  if (inFlight) return inFlight.then(snapshot => snapshot.classifications)
+
+  const promise = (async () => {
+    const tokenRows = await fetchBridgeTransferRows(days)
+    if (tokenRows.length === 0) {
+      return { classifications: [] }
+    }
+
+    const [decimalsByToken, adapterTxHashesByProviderAsset] = await Promise.all([
+      loadDecimalsByToken(tokenRows.map(row => row.address.toLowerCase())),
+      fetchBridgeAdapterTouchRows(days).then(buildAdapterTxHashesByProviderAsset),
+    ])
+
+    const classifications = tokenRows
+      .map(row => classifyBridgeTransfer(row, decimalsByToken, adapterTxHashesByProviderAsset))
+      .filter((event): event is ClassifiedBridgeTransfer => event !== null)
+
+    return { classifications }
+  })()
+
+  inFlightBridgeFlowSnapshots.set(days, promise)
+
+  try {
+    const snapshot = await promise
+    await setCached(cacheKey, snapshot, CACHE_TTL_SECONDS)
+    return snapshot.classifications
+  } finally {
+    inFlightBridgeFlowSnapshots.delete(days)
+  }
+}
+
+async function getStrictBridgeTransferEvents(days: number): Promise<ClassifiedBridgeTransfer[]> {
+  const classifications = await getBridgeTransferClassifications(days)
+  return classifications.filter(event => event.headline)
+}
+
+export async function getDailyBridgeProviderFlows(days = 30): Promise<DailyBridgeProviderFlow[]> {
+  const key = `analytics:bridge_provider_flows:${days}`
+  const cached = await getCached<DailyBridgeProviderFlow[]>(key)
+  if (cached) return cached
+
+  const events = await getStrictBridgeTransferEvents(days)
+  const { providerRows } = rollupBridgeTransfers(events)
+
+  await setCached(key, providerRows, CACHE_TTL_SECONDS)
+  return providerRows
+}
+
+export interface BridgeNetInflowChartData {
+  /** One record per day; keys are provider IDs + 'day' */
+  days:      Array<Record<string, string | number>>
+  /** Providers sorted by period net_flow total descending */
+  providers: Array<{ id: string; label: string; total: number }>
+}
+
+export async function getBridgeNetInflowChartData(days = 30): Promise<BridgeNetInflowChartData> {
+  const key = `analytics:bridge_net_inflow_chart:${days}`
+  const cached = await getCached<BridgeNetInflowChartData>(key)
+  if (cached) return cached
+
+  const providerRows = await getDailyBridgeProviderFlows(days)
+
+  // Aggregate totals per provider
+  const providerTotals = new Map<string, { label: string; total: number }>()
+  for (const row of providerRows) {
+    const existing = providerTotals.get(row.provider) ?? { label: row.provider_label, total: 0 }
+    existing.total += row.net_flow
+    providerTotals.set(row.provider, existing)
+  }
+
+  const providers = [...providerTotals.entries()]
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([id, { label, total }]) => ({ id, label, total }))
+
+  // Pivot rows by day
+  const dayMap = new Map<string, Record<string, string | number>>()
+  for (const row of providerRows) {
+    if (!dayMap.has(row.day)) dayMap.set(row.day, { day: row.day })
+    dayMap.get(row.day)![row.provider] = row.net_flow
+  }
+  const dayRows = [...dayMap.values()].sort((a, b) => String(a.day).localeCompare(String(b.day)))
+
+  const result: BridgeNetInflowChartData = { days: dayRows, providers }
+  await setCached(key, result, CACHE_TTL_SECONDS)
+  return result
+}
+
+export async function getDailyBridgeProviderAssetFlows(days = 30): Promise<DailyBridgeProviderAssetFlow[]> {
+  const key = `analytics:bridge_provider_asset_flows:${days}`
+  const cached = await getCached<DailyBridgeProviderAssetFlow[]>(key)
+  if (cached) return cached
+
+  const events = await getStrictBridgeTransferEvents(days)
+  const { assetRows } = rollupBridgeTransfers(events)
+
+  await setCached(key, assetRows, CACHE_TTL_SECONDS)
+  return assetRows
+}
+
+export interface RecentBridgeEvent {
+  day: string
+  provider: string
+  provider_label: string
+  asset: string
+  token: string
+  user: string
+  tx_hash: string
+  direction: 'inflow' | 'outflow'
+  amount: number
+}
+
+export async function getRecentBridgeEvents(limit = 50, days = 30): Promise<RecentBridgeEvent[]> {
+  const events = await getStrictBridgeTransferEvents(days)
+  return [...events]
+    .sort((a, b) => b.day.localeCompare(a.day) || b.tx_hash.localeCompare(a.tx_hash))
+    .slice(0, limit)
+    .map(({ day, provider, provider_label, asset, token, user, tx_hash, direction, amount }) => ({
+      day, provider, provider_label, asset, token, user, tx_hash, direction, amount,
+    }))
+}

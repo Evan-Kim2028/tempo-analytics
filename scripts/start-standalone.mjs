@@ -10,7 +10,9 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 await prepareStandaloneAssets(rootDir)
 
-const child = spawn(process.execPath, [path.join(rootDir, '.next', 'standalone', 'server.js')], {
+const envFile = await standaloneModule.resolveStandaloneEnvFile(rootDir)
+const serverEntry = await standaloneModule.resolveStandaloneServerEntry(rootDir)
+const child = spawn(process.execPath, ['--env-file', envFile, serverEntry], {
   cwd: rootDir,
   env: process.env,
   stdio: 'inherit',

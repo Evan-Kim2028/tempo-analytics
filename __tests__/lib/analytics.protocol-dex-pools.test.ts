@@ -39,10 +39,12 @@ const mockGetTokenInfo = getTokenInfo as jest.Mock
 beforeEach(() => jest.clearAllMocks())
 
 test('getProtocolDexPools marks known tokens as whitelisted', async () => {
-  mockQuery.mockResolvedValueOnce([
-    { pool_id: '7', token: '0x20c000000000000000000000b9537d11c60e8b50', swaps: '100', volume_raw: '500000000' },
-    { pool_id: '3', token: '0xdeadbeef00000000000000000000000000000001', swaps: '50', volume_raw: '200000000' },
-  ])
+  mockQuery
+    .mockResolvedValueOnce([
+      { pool_id: '7', token: '0x20c000000000000000000000b9537d11c60e8b50', swaps: '100', volume_raw: '500000000' },
+      { pool_id: '3', token: '0xdeadbeef00000000000000000000000000000001', swaps: '50', volume_raw: '200000000' },
+    ])
+    .mockResolvedValueOnce([]) // DAU query — empty is fine for this test
   mockGetTokenInfo
     .mockResolvedValueOnce({ symbol: 'USDC.e', name: 'USD Coin', decimals: 6, address: '0x20c000000000000000000000b9537d11c60e8b50' })
     .mockResolvedValueOnce(null)
@@ -54,13 +56,16 @@ test('getProtocolDexPools marks known tokens as whitelisted', async () => {
   expect(pools[0].symbol).toBe('USDC.e')
   expect(pools[0].volume_usd).toBeCloseTo(500)
   expect(pools[1].whitelisted).toBe(false)
-  expect(pools[1].volume_usd).toBe(0)
+  // volume_usd is always shown (volume_raw / 1e6) regardless of whitelisted status
+  expect(pools[1].volume_usd).toBeCloseTo(200)
 })
 
 test('getProtocolDexPools avg_trade is volume_usd / swaps_30d', async () => {
-  mockQuery.mockResolvedValueOnce([
-    { pool_id: '7', token: '0x20c000000000000000000000b9537d11c60e8b50', swaps: '10', volume_raw: '100000000' },
-  ])
+  mockQuery
+    .mockResolvedValueOnce([
+      { pool_id: '7', token: '0x20c000000000000000000000b9537d11c60e8b50', swaps: '10', volume_raw: '100000000' },
+    ])
+    .mockResolvedValueOnce([]) // DAU query
   mockGetTokenInfo.mockResolvedValueOnce({ symbol: 'USDC.e', name: 'USD Coin', decimals: 6, address: '0x...' })
 
   const [pool] = await getProtocolDexPools(30)
@@ -68,9 +73,11 @@ test('getProtocolDexPools avg_trade is volume_usd / swaps_30d', async () => {
 })
 
 test('getProtocolDexPools symbol falls back to shortened address for unknown tokens', async () => {
-  mockQuery.mockResolvedValueOnce([
-    { pool_id: '1', token: '0xabcdef1234567890abcdef1234567890abcdef12', swaps: '5', volume_raw: '0' },
-  ])
+  mockQuery
+    .mockResolvedValueOnce([
+      { pool_id: '1', token: '0xabcdef1234567890abcdef1234567890abcdef12', swaps: '5', volume_raw: '0' },
+    ])
+    .mockResolvedValueOnce([]) // DAU query
   mockGetTokenInfo.mockResolvedValueOnce(null)
 
   const [pool] = await getProtocolDexPools(30)

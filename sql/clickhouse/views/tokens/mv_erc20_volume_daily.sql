@@ -1,8 +1,13 @@
--- sql/clickhouse/views/tokens/mv_erc20_volume_daily.sql
--- Domain: tokens — daily ERC-20 transfer volume across all tokens (~2600+ tokens)
--- topic3 IS NULL distinguishes ERC-20 from ERC-721 (same Transfer selector)
--- volume_raw: raw uint256 lo-64 (divide by 10^decimals at query time)
--- Apply with scripts/apply-clickhouse-assets.sh
+-- @name:         mv_erc20_volume_daily
+-- @domain:       tokens
+-- @kind:         materialized_view
+-- @purpose:      Daily ERC-20 transfer volume across all tokens (~2600+)
+-- @upstream:     tidx_4217.logs
+-- @consumers:    src/lib/analytics.ts
+-- @backfill:     sql/clickhouse/backfills/tokens/mv_erc20_volume_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 CREATE TABLE IF NOT EXISTS tidx_4217.mv_erc20_volume_daily
 (

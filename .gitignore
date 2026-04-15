@@ -8,3 +8,5 @@ coverage
 .env.test.local
 *.tsbuildinfo
 .worktrees
+__pycache__
+scripts/_vendor/

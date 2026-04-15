@@ -2,7 +2,7 @@
 import { Fragment, useState, useCallback, useRef } from 'react'
 import type { ProtocolDexPool, ProtocolDexTrade } from '@/lib/analytics'
 
-type SortKey = 'volume' | 'swaps' | 'avg_trade'
+type SortKey = 'volume' | 'swaps' | 'avg_trade' | 'dau_1d' | 'dau_7d' | 'dau_30d'
 
 const fmtUSD = (n: number) =>
   new Intl.NumberFormat('en-US', {
@@ -34,6 +34,9 @@ export function ProtocolDexPoolExplorer({ pools }: { pools: ProtocolDexPool[] })
     .sort((a, b) => {
       if (sortBy === 'volume')    return b.volume_usd  - a.volume_usd
       if (sortBy === 'swaps')     return b.swaps_30d   - a.swaps_30d
+      if (sortBy === 'dau_1d')    return b.dau_1d      - a.dau_1d
+      if (sortBy === 'dau_7d')    return b.dau_7d      - a.dau_7d
+      if (sortBy === 'dau_30d')   return b.dau_30d     - a.dau_30d
       return b.avg_trade - a.avg_trade
     })
 
@@ -92,6 +95,9 @@ export function ProtocolDexPoolExplorer({ pools }: { pools: ProtocolDexPool[] })
             <option value="volume">Volume (30d)</option>
             <option value="swaps">Swaps (30d)</option>
             <option value="avg_trade">Avg Trade Size</option>
+            <option value="dau_30d">DAU (30d)</option>
+            <option value="dau_7d">DAU (7d)</option>
+            <option value="dau_1d">DAU (1d)</option>
           </select>
         </div>
       </div>
@@ -105,7 +111,9 @@ export function ProtocolDexPoolExplorer({ pools }: { pools: ProtocolDexPool[] })
               <th className="text-right px-4 py-3 text-tempo-muted font-normal">30d Volume</th>
               <th className="text-right px-4 py-3 text-tempo-muted font-normal">30d Swaps</th>
               <th className="text-right px-4 py-3 text-tempo-muted font-normal">Avg Trade</th>
-              <th className="text-right px-6 py-3 text-tempo-muted font-normal">Status</th>
+              <th className="text-right px-4 py-3 text-tempo-muted font-normal">DAU (1d)</th>
+              <th className="text-right px-4 py-3 text-tempo-muted font-normal">DAU (7d)</th>
+              <th className="text-right px-6 py-3 text-tempo-muted font-normal">DAU (30d)</th>
             </tr>
           </thead>
           <tbody>
@@ -122,30 +130,28 @@ export function ProtocolDexPoolExplorer({ pools }: { pools: ProtocolDexPool[] })
                     </div>
                   </td>
                   <td className="text-right px-4 py-4 text-white font-mono">
-                    {pool.whitelisted ? fmtUSD(pool.volume_usd) : '—'}
+                    {fmtUSD(pool.volume_usd)}
                   </td>
                   <td className="text-right px-4 py-4 text-tempo-muted">
                     {fmtCount(pool.swaps_30d)}
                   </td>
                   <td className="text-right px-4 py-4 text-white font-mono">
-                    {pool.whitelisted ? fmtUSD(pool.avg_trade) : '—'}
+                    {fmtUSD(pool.avg_trade)}
                   </td>
-                  <td className="text-right px-6 py-4">
-                    {pool.whitelisted ? (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">
-                        Known
-                      </span>
-                    ) : (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-tempo-border/50 text-tempo-muted border border-tempo-border">
-                        Unknown
-                      </span>
-                    )}
+                  <td className="text-right px-4 py-4 text-tempo-muted font-mono">
+                    {pool.dau_1d > 0 ? fmtCount(pool.dau_1d) : '—'}
+                  </td>
+                  <td className="text-right px-4 py-4 text-tempo-muted font-mono">
+                    {pool.dau_7d > 0 ? fmtCount(pool.dau_7d) : '—'}
+                  </td>
+                  <td className="text-right px-6 py-4 text-tempo-muted font-mono">
+                    {pool.dau_30d > 0 ? fmtCount(pool.dau_30d) : '—'}
                   </td>
                 </tr>
 
                 {expandedToken === pool.token && (
                   <tr className="border-b border-tempo-border bg-tempo-border/10">
-                    <td colSpan={5} className="px-6 py-4">
+                    <td colSpan={7} className="px-6 py-4">
                       <p className="text-sm font-medium text-white mb-3">
                         Recent Trades — {pool.symbol}
                       </p>
@@ -200,7 +206,7 @@ export function ProtocolDexPoolExplorer({ pools }: { pools: ProtocolDexPool[] })
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-tempo-muted text-sm">
+                <td colSpan={7} className="px-6 py-8 text-center text-tempo-muted text-sm">
                   No pools found.
                 </td>
               </tr>

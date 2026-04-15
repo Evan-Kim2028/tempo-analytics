@@ -65,28 +65,33 @@ export async function getCommunityDexTVL(): Promise<number> {
   if (cached) return cached
 
   const pools = await getTopPools(10)
-  let tvl = 0
 
-  for (const pool of pools) {
-    // Determine stablecoin side
-    const [isT0Stable, isT1Stable] = await Promise.all([
-      isWhitelistedPair(pool.token0, pool.token0),
-      isWhitelistedPair(pool.token1, pool.token1),
-    ])
-    const stablecoinToken = isT0Stable ? pool.token0 : isT1Stable ? pool.token1 : null
-    if (!stablecoinToken) continue
+  const stableChecks = await Promise.all(
+    pools.map(async pool => {
+      const [isT0Stable, isT1Stable] = await Promise.all([
+        isWhitelistedPair(pool.token0, pool.token0),
+        isWhitelistedPair(pool.token1, pool.token1),
+      ])
+      const stablecoinToken = isT0Stable ? pool.token0 : isT1Stable ? pool.token1 : null
+      return { pool, stablecoinToken }
+    })
+  )
 
-    try {
-      const balance = await publicClient.readContract({
-        address: stablecoinToken as `0x${string}`,
-        abi: BALANCE_OF_ABI,
-        functionName: 'balanceOf',
-        args: [pool.pair as `0x${string}`],
-      })
-      // ×2: V2 pool is 50/50, stablecoin side = half the TVL
-      tvl += (Number(balance) / 1e6) * 2
-    } catch { /* skip pools that fail */ }
-  }
+  const balances = await Promise.allSettled(
+    stableChecks
+      .filter(s => s.stablecoinToken)
+      .map(({ pool, stablecoinToken }) =>
+        publicClient.readContract({
+          address: stablecoinToken! as `0x${string}`,
+          abi: BALANCE_OF_ABI,
+          functionName: 'balanceOf',
+          args: [pool.pair as `0x${string}`],
+        }).then(balance => (Number(balance) / 1e6) * 2)
+      )
+  )
+
+  const tvl = balances.reduce((sum, r) =>
+    r.status === 'fulfilled' ? sum + r.value : sum, 0)
 
   await setCached(key, tvl, 900)
   return tvl

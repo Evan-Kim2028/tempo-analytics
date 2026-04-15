@@ -1,11 +1,13 @@
--- sql/clickhouse/views/dex/mv_dex_swap_amounts_daily.sql
--- Domain: dex — decoded Uniswap V2 Swap amounts by pair
--- data layout: 4 × 32 bytes = 256 hex chars (1-indexed after 0x prefix)
---   amount0In  last 8 bytes → substring(data, 51,  16)
---   amount1In  last 8 bytes → substring(data, 115, 16)
---   amount0Out last 8 bytes → substring(data, 179, 16)
---   amount1Out last 8 bytes → substring(data, 243, 16)
--- Apply with scripts/apply-clickhouse-assets.sh
+-- @name:         mv_dex_swap_amounts_daily
+-- @domain:       dex
+-- @kind:         materialized_view
+-- @purpose:      Daily decoded Uniswap V2 swap amounts by pair
+-- @upstream:     tidx_4217.logs
+-- @consumers:    src/app/dex/page.tsx, src/lib/analytics.ts
+-- @backfill:     sql/clickhouse/backfills/dex/mv_dex_swap_amounts_daily.sql
+-- @owner:        evan
+-- @since:        2026-04-15
+--
 
 CREATE TABLE IF NOT EXISTS tidx_4217.mv_dex_swap_amounts_daily
 (

@@ -6,6 +6,7 @@ import {
 } from '@/lib/analytics'
 import { getTokenInfo } from '@/lib/tokens'
 import { StatCard } from '@/components/StatCard'
+import { ExportButton } from '@/components/ExportButton'
 
 export const revalidate = 900
 
@@ -20,9 +21,8 @@ export default async function NFTsPage() {
     getTopNFTMinters(50),
   ])
 
-  // Resolve collection names (best-effort)
   const collectionNames = await Promise.all(
-    collections.map(c => getTokenInfo(c.collection))
+    collections.map(c => getTokenInfo(c.collection, { skipRPC: true }))
   )
 
   const totalTransfers30d = daily.reduce((s, d) => s + d.transfers, 0)
@@ -32,11 +32,14 @@ export default async function NFTsPage() {
 
   return (
     <main className="max-w-7xl mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-white mb-1">NFTs</h1>
-        <p className="text-tempo-muted text-sm">
-          ERC-721 transfer activity on Tempo Mainnet.
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-white mb-1">NFTs</h1>
+          <p className="text-tempo-muted text-sm">
+            ERC-721 transfer activity on Tempo Mainnet.
+          </p>
+        </div>
+        <ExportButton queryKey="nft-activity" label="Export CSV" />
       </div>
 
       {/* Summary cards */}
@@ -54,6 +57,10 @@ export default async function NFTsPage() {
       <div className="bg-tempo-card border border-tempo-border rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-tempo-border">
           <h2 className="text-base font-medium text-white">Top Collections (all time)</h2>
+          <p className="text-tempo-muted text-xs mt-1">
+            Each row is an ERC-721 contract — the on-chain address that mints and tracks ownership of an NFT set.
+            Transfers include mints, secondary sales, and direct sends.
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
