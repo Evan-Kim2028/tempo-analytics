@@ -40,7 +40,7 @@ export default async function PaymentsPage() {
         <h2 className="text-xl font-semibold text-white">Micropayments</h2>
         <MicropaymentsSummary summary={data.micropaymentStats.summary} />
         <div className="grid gap-6 xl:grid-cols-2">
-          <ChartCard title="Micropayment Volume by Tier (30d)">
+          <ChartCard title="Micropayment Transactions by Tier (30d)">
             <MicropaymentTierChart data={data.micropaymentStats.daily} />
           </ChartCard>
           <ChartCard title="Micropayments vs Large Payments (30d)">
