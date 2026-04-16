@@ -79,6 +79,11 @@ test('computes feature adoption percentages from raw counts', async () => {
   await expect(getTempoFeatureAdoptionByDay(7)).resolves.toEqual([
     {
       day: '2026-04-01',
+      total_txs: 100,
+      sponsored_txs: 4,
+      batched_txs: 2,
+      time_bounded_txs: 80,
+      fee_token_set_txs: 25,
       sponsored_pct: 4,
       batched_pct: 2,
       time_bounded_pct: 80,
