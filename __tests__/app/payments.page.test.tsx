@@ -56,6 +56,18 @@ test('renders the payments page shell and major sections', async () => {
     topRecipientsByAmount: [],
     topRecipientsByCount: [],
     topSenders: [],
+    micropaymentStats: {
+      summary: {
+        sub_cent_count: 0,
+        sub_nickel_count: 0,
+        sub_dime_count: 0,
+        large_count: 0,
+        micro_count: 0,
+        micro_amount: 0,
+        micro_share_pct: 0,
+      },
+      daily: [],
+    },
   })
 
   render(await PaymentsPage())

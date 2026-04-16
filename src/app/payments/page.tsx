@@ -1,9 +1,21 @@
 import { PaymentsNarrative } from '@/components/payments/PaymentsNarrative'
 import { PaymentsSummary } from '@/components/payments/PaymentsSummary'
+import { MicropaymentsSummary } from '@/components/payments/MicropaymentsSummary'
+import { MicropaymentTierChart } from '@/components/charts/MicropaymentTierChart'
+import { MicropaymentVsLargeChart } from '@/components/charts/MicropaymentVsLargeChart'
 import { RecentPaymentsTable } from '@/components/payments/RecentPaymentsTable'
 import { getPaymentsPageData } from '@/lib/payments'
 
 export const revalidate = 900
+
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="bg-tempo-card border border-tempo-border rounded-lg p-5">
+      <h2 className="text-lg font-medium text-white mb-4">{title}</h2>
+      {children}
+    </section>
+  )
+}
 
 export default async function PaymentsPage() {
   const data = await getPaymentsPageData()
@@ -23,6 +35,19 @@ export default async function PaymentsPage() {
           </span>
         </div>
       </header>
+
+      <section className="space-y-6">
+        <h2 className="text-xl font-semibold text-white">Micropayments</h2>
+        <MicropaymentsSummary summary={data.micropaymentStats.summary} />
+        <div className="grid gap-6 xl:grid-cols-2">
+          <ChartCard title="Micropayment Volume by Tier (30d)">
+            <MicropaymentTierChart data={data.micropaymentStats.daily} />
+          </ChartCard>
+          <ChartCard title="Micropayments vs Large Payments (30d)">
+            <MicropaymentVsLargeChart data={data.micropaymentStats.daily} />
+          </ChartCard>
+        </div>
+      </section>
 
       <PaymentsSummary summary={data.summary} />
       <PaymentsNarrative
