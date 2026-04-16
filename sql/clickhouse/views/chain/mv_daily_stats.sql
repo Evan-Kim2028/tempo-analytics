@@ -5,6 +5,10 @@
 -- @upstream:     tidx_4217.txs
 -- @consumers:    src/app/analytics/page.tsx, src/lib/analytics.ts
 -- @backfill:     sql/clickhouse/backfills/chain/mv_daily_stats.sql
+-- @notes:        batch_txs currently uses call_count > 1 to represent multi-call Tempo envelopes.
+-- @notes:        sponsored_txs currently uses fee_payer != from as the explorer sponsorship predicate.
+-- @notes:        user_txs/protocol_txs/inscription_txs are explorer heuristics, not Tempo protocol categories.
+-- @notes:        inscription_txs identifies calldata starting with 0x7b (ASCII "{").
 -- @owner:        evan
 -- @since:        2026-04-15
 --

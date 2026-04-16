@@ -16,6 +16,8 @@ export interface QueryResult {
   rows: Row[]
 }
 
+// Exported query semantics that rely on Tempo-specific indexed fields are documented in docs/tempo-semantics.md;
+// keep query strings behavior-stable unless they are separately migrated.
 const QUERY_CATALOG: QueryEntry[] = [
   {
     key: 'account-types',

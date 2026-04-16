@@ -83,6 +83,7 @@ export interface WebauthnUsagePoint {
   webauthn_pct_of_tempo: number
 }
 
+// Decimal 118 is Tempo EIP-2718 type 0x76; see docs/tempo-semantics.md for the transaction type mapping.
 export async function getTempoTxShareByDay(days = 30): Promise<TempoTxSharePoint[]> {
   const key = `tempo-analytics:tx-share:${days}`
   return getCachedQuery(key, async () => {
@@ -118,6 +119,7 @@ export async function getTempoTxShareByDay(days = 30): Promise<TempoTxSharePoint
   })
 }
 
+// These predicates are documented in docs/tempo-semantics.md and define analytics over indexed fields.
 export async function getTempoFeatureAdoptionByDay(days = 30): Promise<TempoFeatureAdoptionPoint[]> {
   const key = `tempo-analytics:feature-adoption:${days}`
   return getCachedQuery(key, async () => {
@@ -328,6 +330,7 @@ export async function getTopSponsors(limit = 10): Promise<TopSponsorRow[]> {
   })
 }
 
+// WebAuthn/passkey usage here means Tempo txs with signature_type = 2; see docs/tempo-semantics.md.
 export async function getWebauthnUsageByDay(days = 30): Promise<WebauthnUsagePoint[]> {
   const key = `tempo-analytics:webauthn-usage:${days}`
   return getCachedQuery(key, async () => {

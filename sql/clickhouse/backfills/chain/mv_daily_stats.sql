@@ -3,6 +3,8 @@
 -- @kind:         backfill
 -- @purpose:      Historical backfill for mv_daily_stats.
 -- @pairs:        sql/clickhouse/views/chain/mv_daily_stats.sql
+-- @notes:        Keep predicates aligned with sql/clickhouse/views/chain/mv_daily_stats.sql.
+-- @notes:        This backfill preserves existing explorer heuristics and does not define protocol categories.
 -- @owner:        evan
 -- @since:        2026-04-15
 --
