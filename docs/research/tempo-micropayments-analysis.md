@@ -385,76 +385,67 @@ A true 402/MPP flow would show:
 
 ---
 
+
 ## Appendix: Reproducible Queries
 
-All queries run against `tidx_4217` on ClickHouse. Replace the stablecoin list with the current canonical set as needed.
+All queries run against `tidx_4217` on ClickHouse. Verified working as of 2026-04-15.
+
+The stablecoin address list (17 verified TIP-20 tokens) used in all queries:
 
 ```sql
--- Common stablecoin address list used in all queries below
--- (17 verified TIP-20 stablecoins as of 2026-04-15)
--- Referred to as <STABLECOINS> in queries below:
---   '0x20c0000000000000000000000000000000000000',  -- pathUSD
---   '0x20c000000000000000000000b9537d11c60e8b50',  -- USDC.e
---   '0x20c0000000000000000000001621e21f71cf12fb',  -- EURC.e
---   '0x20c00000000000000000000014f22ca97301eb73',
---   '0x20c0000000000000000000003554d28269e0f3c2',
---   '0x20c0000000000000000000000520792dcccccccc',
---   '0x20c0000000000000000000008ee4fcff88888888',
---   '0x20c0000000000000000000005c0bac7cef389a11',
---   '0x20c0000000000000000000007f7ba549dd0251b9',
---   '0x20c000000000000000000000aeed2ec36a54d0e5',
---   '0x20c0000000000000000000009a4a4b17e0dc6651',
---   '0x20c000000000000000000000383a23bacb546ab9',
---   '0x20c000000000000000000000ab02d39df30bd17e',
---   '0x20c000000000000000000000048c8f36df1c9a4a',
---   '0x20c0000000000000000000002f52d5cc21a3207b',
---   '0x20c000000000000000000000bd95bfb69fbe6ce3',
---   '0x20c000000000000000000000ae247a1130450f09'
+-- Paste this IN (...) list wherever <STABLECOINS> appears below
+'0x20c0000000000000000000000000000000000000',  -- pathUSD
+'0x20c000000000000000000000b9537d11c60e8b50',  -- USDC.e
+'0x20c0000000000000000000001621e21f71cf12fb',  -- EURC.e
+'0x20c00000000000000000000014f22ca97301eb73',
+'0x20c0000000000000000000003554d28269e0f3c2',
+'0x20c0000000000000000000000520792dcccccccc',
+'0x20c0000000000000000000008ee4fcff88888888',
+'0x20c0000000000000000000005c0bac7cef389a11',
+'0x20c0000000000000000000007f7ba549dd0251b9',
+'0x20c000000000000000000000aeed2ec36a54d0e5',
+'0x20c0000000000000000000009a4a4b17e0dc6651',
+'0x20c000000000000000000000383a23bacb546ab9',
+'0x20c000000000000000000000ab02d39df30bd17e',
+'0x20c000000000000000000000048c8f36df1c9a4a',
+'0x20c0000000000000000000002f52d5cc21a3207b',
+'0x20c000000000000000000000bd95bfb69fbe6ce3',
+'0x20c000000000000000000000ae247a1130450f09'
 
--- transferWithMemo event selector (topic0):
---   0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0
--- transferWithMemo function selector (tx input prefix):
---   0x95777d59
+-- Selectors
+-- transferWithMemo event (topic0):   0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0
+-- transferWithMemo function (input): 0x95777d59
+-- ERC-20 Transfer event (topic0):    0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
 ```
+
+Address encoding note: `topic1`/`topic2` in logs are 32-byte ABI-padded (`0x` + 24 zero chars + 40-char address = 66 chars total). Extract the address with `lower(concat('0x', substr(topicN, 27)))`.
 
 ---
 
 ### Q1: Payment Tier Breakdown
 
-Produces the §1 tier table. Gas cost requires joining logs to receipts via the tx hash (from the log's transaction_hash field, if indexed) or joining logs → txs → receipts.
+Produces the §1 tier table. Gas cost column requires the Q3 JOIN; this query covers tx counts, value, and sender/recipient counts from logs only.
 
 ```sql
 SELECT
   multiIf(
     amount_usd < 0.01,  'A: Under $0.01',
-    amount_usd < 0.10,  'B: $0.01–$0.10',
-    amount_usd < 1.00,  'C: $0.10–$1.00',
-    amount_usd < 10.0,  'D: $1–$10',
-    amount_usd < 100.0, 'E: $10–$100',
+    amount_usd < 0.10,  'B: $0.01-$0.10',
+    amount_usd < 1.00,  'C: $0.10-$1.00',
+    amount_usd < 10.0,  'D: $1-$10',
+    amount_usd < 100.0, 'E: $10-$100',
                         'F: $100+'
   ) AS tier,
-  count()                              AS tx_count,
-  round(sum(amount_usd), 2)            AS total_usd,
-  round(avg(amount_usd), 5)            AS avg_usd,
-  round(sum(amount_usd) /
-    (SELECT sum(toFloat64(reinterpretAsUInt256(reverse(unhex(substr(data, 3, 64))))) / 1e6)
-     FROM tidx_4217.logs
-     WHERE selector = '0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0'
-       AND lower(address) IN (<STABLECOINS>)
-       AND block_timestamp >= now() - INTERVAL 30 DAY
-    ) * 100, 2)                        AS pct_of_total_usd,
-  count() * 100.0 /
-    (SELECT count() FROM tidx_4217.logs
-     WHERE selector = '0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0'
-       AND lower(address) IN (<STABLECOINS>)
-       AND block_timestamp >= now() - INTERVAL 30 DAY
-    )                                  AS pct_of_total_txs,
-  uniqExact(lower(topic1))             AS unique_senders,
-  uniqExact(lower(topic2))             AS unique_recipients
+  count()                   AS tx_count,
+  round(sum(amount_usd), 2) AS total_usd,
+  round(avg(amount_usd), 5) AS avg_usd,
+  uniqExact(lower(topic1))  AS unique_senders,
+  uniqExact(lower(topic2))  AS unique_recipients
 FROM (
   SELECT
     toFloat64(reinterpretAsUInt256(reverse(unhex(substr(data, 3, 64))))) / 1e6 AS amount_usd,
-    topic1, topic2
+    topic1,
+    topic2
   FROM tidx_4217.logs
   WHERE selector = '0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0'
     AND lower(address) IN (<STABLECOINS>)
@@ -474,8 +465,8 @@ Produces the §1.1 table.
 SELECT
   multiIf(
     amount_usd < 0.01,  'A: Under $0.01',
-    amount_usd < 0.05,  'B: $0.01–$0.05',
-    amount_usd < 0.10,  'C: $0.05–$0.10',
+    amount_usd < 0.05,  'B: $0.01-$0.05',
+    amount_usd < 0.10,  'C: $0.05-$0.10',
                         'D: $0.10+'
   ) AS tier,
   count()                   AS tx_count,
@@ -497,26 +488,27 @@ ORDER BY tier;
 
 ### Q3: Gas Cost vs Payment Value (per tier)
 
+Joins logs to receipts via `tx_hash`. `effective_gas_price` is in the receipts table as a hex string; stablecoin gas is denominated in pathUSD (1:1 USD), so no ETH conversion is needed.
+
 ```sql
 SELECT
   multiIf(
     amount_usd < 0.01,  'A: Under $0.01',
-    amount_usd < 0.10,  'B: $0.01–$0.10',
-    amount_usd < 1.00,  'C: $0.10–$1.00',
+    amount_usd < 0.10,  'B: $0.01-$0.10',
+    amount_usd < 1.00,  'C: $0.10-$1.00',
                         'D: $1+'
   ) AS tier,
-  round(avg(amount_usd), 5)                                  AS avg_payment,
-  round(avg(gas_usd), 6)                                     AS avg_gas,
-  round(avg(gas_usd) / avg(amount_usd) * 100, 1)            AS gas_pct_of_payment,
-  countIf(gas_usd > amount_usd)                              AS txs_gas_gt_payment,
-  count()                                                    AS total_txs
+  round(avg(amount_usd), 5)                                   AS avg_payment,
+  round(avg(gas_usd), 6)                                      AS avg_gas,
+  round(avg(gas_usd) / nullIf(avg(amount_usd), 0) * 100, 1)  AS gas_pct_of_payment,
+  countIf(gas_usd > amount_usd)                               AS txs_gas_gt_payment,
+  count()                                                     AS total_txs
 FROM (
   SELECT
-    toFloat64(reinterpretAsUInt256(reverse(unhex(substr(data, 3, 64))))) / 1e6 AS amount_usd,
-    toFloat64(receipts.gas_used) * toFloat64OrZero(receipts.effective_gas_price) / 1e18 AS gas_usd,
-    logs.transaction_hash
+    toFloat64(reinterpretAsUInt256(reverse(unhex(substr(data, 3, 64))))) / 1e6          AS amount_usd,
+    toFloat64(receipts.gas_used) * toFloat64OrZero(receipts.effective_gas_price) / 1e18 AS gas_usd
   FROM tidx_4217.logs
-  INNER JOIN tidx_4217.receipts ON receipts.tx_hash = logs.transaction_hash
+  INNER JOIN tidx_4217.receipts ON receipts.tx_hash = logs.tx_hash
   WHERE logs.selector = '0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0'
     AND lower(logs.address) IN (<STABLECOINS>)
     AND receipts.status = 1
@@ -530,28 +522,27 @@ ORDER BY tier;
 
 ### Q4: Gas Revenue Efficiency by Tier
 
-Derives the §2.1 "gas per $1 of value" table. Approximation using tier averages from Q1; for exact figures use the full JOIN above.
+Produces the §2.1 "gas per $1 of value" table. Exact figures via full logs → receipts JOIN.
 
 ```sql
--- Exact version (slower, joins logs → receipts)
 SELECT
   multiIf(
     amount_usd < 0.01,  'A: Under $0.01',
-    amount_usd < 0.10,  'B: $0.01–$0.10',
-    amount_usd < 1.00,  'C: $0.10–$1.00',
-    amount_usd < 10.0,  'D: $1–$10',
-    amount_usd < 100.0, 'E: $10–$100',
+    amount_usd < 0.10,  'B: $0.01-$0.10',
+    amount_usd < 1.00,  'C: $0.10-$1.00',
+    amount_usd < 10.0,  'D: $1-$10',
+    amount_usd < 100.0, 'E: $10-$100',
                         'F: $100+'
   ) AS tier,
-  round(sum(amount_usd), 2)                            AS total_value,
-  round(sum(gas_usd), 4)                               AS total_gas,
-  round(sum(gas_usd) / sum(amount_usd), 6)             AS gas_per_dollar_of_value
+  round(sum(amount_usd), 2)                             AS total_value,
+  round(sum(gas_usd), 4)                                AS total_gas,
+  round(sum(gas_usd) / nullIf(sum(amount_usd), 0), 6)  AS gas_per_dollar_of_value
 FROM (
   SELECT
-    toFloat64(reinterpretAsUInt256(reverse(unhex(substr(data, 3, 64))))) / 1e6 AS amount_usd,
+    toFloat64(reinterpretAsUInt256(reverse(unhex(substr(data, 3, 64))))) / 1e6          AS amount_usd,
     toFloat64(receipts.gas_used) * toFloat64OrZero(receipts.effective_gas_price) / 1e18 AS gas_usd
   FROM tidx_4217.logs
-  INNER JOIN tidx_4217.receipts ON receipts.tx_hash = logs.transaction_hash
+  INNER JOIN tidx_4217.receipts ON receipts.tx_hash = logs.tx_hash
   WHERE logs.selector = '0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0'
     AND lower(logs.address) IN (<STABLECOINS>)
     AND receipts.status = 1
@@ -565,7 +556,7 @@ ORDER BY tier;
 
 ### Q5: Gas by Payment Category
 
-Produces the §2.1 micropayments vs large payments comparison table. Uses `txs` + `receipts`; amount extracted from ABI-encoded function input (offset 75, 64 hex chars = 32-byte uint256 amount).
+Compares micropayments vs large payments using the `txs` table. Amount is ABI-encoded in `input` at offset 75 (bytes 37–68 of the calldata = param 2).
 
 ```sql
 SELECT
@@ -577,7 +568,6 @@ FROM (
   SELECT
     toFloat64(receipts.gas_used) * toFloat64OrZero(receipts.effective_gas_price) / 1e18 AS gas_usd,
     multiIf(
-      -- amount is at input position 75, length 64 (ABI param 2: uint256 amount)
       toFloat64(reinterpretAsUInt256(reverse(unhex(substr(lower(txs.input), 75, 64))))) / 1e6 < 0.10,
       'micropayment_lt_0.10',
       'payment_gte_0.10'
@@ -597,7 +587,7 @@ ORDER BY category;
 
 ### Q6: Gas Token Preference
 
-Produces the §2.2 fee token table. `fee_token` is stored on `tidx_4217.txs`.
+`fee_token` is stored on `tidx_4217.txs`. NULL fee_token means pathUSD (the default).
 
 ```sql
 SELECT
@@ -608,7 +598,7 @@ SELECT
     lower(fee_token) = '0x20c0000000000000000000001621e21f71cf12fb', 'EURC.e',
     coalesce(lower(fee_token), 'pathUSD')
   ) AS fee_token_name,
-  count()                                                                    AS tx_count,
+  count()                                                                   AS tx_count,
   round(count() / sum(count()) OVER (PARTITION BY payment_type) * 100, 1)  AS pct
 FROM (
   SELECT
@@ -631,10 +621,9 @@ ORDER BY payment_type, tx_count DESC;
 
 ### Q7: Master Distributor Analysis
 
-Identifies the top ERC-20 Transfer senders into ef1e-sending wallets. The Transfer event selector is `0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef`; `topic1` = from, `topic2` = to (both zero-padded to 32 bytes).
+Finds top ERC-20 Transfer senders (funders) into the ef1e micropayment sender wallets. Topics are 32-byte ABI-padded; `substr(topicN, 27)` extracts the 20-byte address portion.
 
 ```sql
--- Top distributors by wallets funded (90 days, USDC.e only)
 SELECT
   lower(concat('0x', substr(topic1, 27))) AS distributor,
   uniqExact(lower(concat('0x', substr(topic2, 27)))) AS wallets_funded,
@@ -645,8 +634,8 @@ WHERE selector = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523
   AND lower(address) = '0x20c000000000000000000000b9537d11c60e8b50'  -- USDC.e
   AND block_timestamp >= now() - INTERVAL 90 DAY
   AND lower(concat('0x', substr(topic2, 27))) IN (
-    -- ef1e micropayment senders (last 30 days)
-    SELECT DISTINCT lower(topic1)
+    -- ef1e micropayment senders active in last 30 days
+    SELECT DISTINCT lower(concat('0x', substr(topic1, 27)))
     FROM tidx_4217.logs
     WHERE selector = '0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0'
       AND lower(address) IN (<STABLECOINS>)
@@ -662,39 +651,39 @@ LIMIT 10;
 
 ### Q8: Memo Format Taxonomy
 
-Classifies all `transferWithMemo` events by memo format. `topic3` is the 32-byte memo field.
+Classifies all `transferWithMemo` events by memo format. `topic3` is the 32-byte memo field; NULL topic3 is treated as empty via `coalesce`.
 
 ```sql
 SELECT
   multiIf(
     topic3 = '0x0000000000000000000000000000000000000000000000000000000000000000',
       'empty',
-    startsWith(lower(topic3), '0xef1ed712'),
+    startsWith(lower(coalesce(topic3, '')), '0xef1ed712'),
       'ef1e (account settlement)',
-    startsWith(lower(topic3), '0x6d70707368616675'),
+    startsWith(lower(coalesce(topic3, '')), '0x6d70707368616675'),
       'mppshafu (payment proof)',
-    startsWith(lower(topic3), '0x534f432d'),
+    startsWith(lower(coalesce(topic3, '')), '0x534f432d'),
       'SOC-* (reconciliation)',
-    startsWith(lower(topic3), '0x494e562d'),
+    startsWith(lower(coalesce(topic3, '')), '0x494e562d'),
       'INV-* (invoice)',
-    startsWith(lower(topic3), '0x54584e2d'),
+    startsWith(lower(coalesce(topic3, '')), '0x54584e2d'),
       'TXN-* (transaction ref)',
-    startsWith(lower(topic3), '0x5041592d'),
+    startsWith(lower(coalesce(topic3, '')), '0x5041592d'),
       'PAY-* (payment ref)',
-    startsWith(lower(topic3), '0x4f52442d'),
+    startsWith(lower(coalesce(topic3, '')), '0x4f52442d'),
       'ORD-* (order ref)',
-    startsWith(lower(topic3), '0x5245462d'),
+    startsWith(lower(coalesce(topic3, '')), '0x5245462d'),
       'REF-* (reference)',
-    startsWith(lower(topic3), '0x67617465776179'),
+    startsWith(lower(coalesce(topic3, '')), '0x67617465776179'),
       'gateway_{CHAIN}_{ts}',
-    startsWith(lower(topic3), '0x0101544d504f'),
+    startsWith(lower(coalesce(topic3, '')), '0x0101544d504f'),
       'TMPO binary protocol',
-    match(substr(lower(topic3), 3), '^(00|2[0-9a-f]|3[0-9a-f]|4[0-9a-f]|5[0-9a-f]|6[0-9a-f]|7[0-9a-e]){32}$'),
+    match(substr(lower(coalesce(topic3, '')), 3), '^(00|2[0-9a-f]|3[0-9a-f]|4[0-9a-f]|5[0-9a-f]|6[0-9a-f]|7[0-9a-e]){32}$'),
       'printable ASCII (human text)',
     'opaque binary (other)'
   ) AS memo_format,
-  count()                                                                                AS tx_count,
-  round(count() * 100.0 / sum(count()) OVER (), 2)                                     AS pct,
+  count()                                                                                    AS tx_count,
+  round(count() * 100.0 / sum(count()) OVER (), 2)                                          AS pct,
   round(sum(toFloat64(reinterpretAsUInt256(reverse(unhex(substr(data, 3, 64))))) / 1e6), 2) AS total_usd
 FROM tidx_4217.logs
 WHERE selector = '0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0'
@@ -708,7 +697,7 @@ ORDER BY tx_count DESC;
 
 ### Q9: Sender Funding Graph
 
-Identifies which wallets funded the ef1e micropayment senders via ERC-20 transfers.
+Identifies which addresses funded the ef1e micropayment sender wallets across all stablecoins (not just USDC.e).
 
 ```sql
 SELECT
@@ -718,15 +707,15 @@ SELECT
 FROM tidx_4217.logs
 WHERE selector = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
   AND lower(address) IN (<STABLECOINS>)
+  AND block_timestamp >= now() - INTERVAL 90 DAY
   AND lower(concat('0x', substr(topic2, 27))) IN (
-    SELECT DISTINCT lower(topic1)
+    SELECT DISTINCT lower(concat('0x', substr(topic1, 27)))
     FROM tidx_4217.logs
     WHERE selector = '0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0'
       AND lower(address) IN (<STABLECOINS>)
       AND startsWith(lower(coalesce(topic3, '')), '0xef1ed712')
       AND block_timestamp >= now() - INTERVAL 30 DAY
   )
-  AND block_timestamp >= now() - INTERVAL 90 DAY
 GROUP BY funder
 ORDER BY ef1e_wallets_funded DESC
 LIMIT 10;
@@ -736,7 +725,7 @@ LIMIT 10;
 
 ### Q10: Sponsorship Rate
 
-Measures what fraction of micropayments have a gas sponsor (`fee_payer != from`).
+Measures what fraction of `transferWithMemo` transactions have a gas sponsor (`fee_payer != from`).
 
 ```sql
 SELECT
