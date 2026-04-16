@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip,
 } from 'recharts'
-import type { PaymentsDailyByToken } from '@/lib/payments'
+import type { FeeTokenAmountDailyStat } from '@/lib/analytics'
 
 const PALETTE = [
   '#0057FF', '#10B981', '#F59E0B', '#8B5CF6',
@@ -12,10 +12,10 @@ const PALETTE = [
 ]
 
 const fmtUsd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 2 })
-const fmtUsdFull = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
+const fmtUsdFull = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 4 })
 
 function CustomLegend({ tokens, total }: {
-  tokens: PaymentsDailyByToken['tokens']
+  tokens: FeeTokenAmountDailyStat['tokens']
   total: number
 }) {
   return (
@@ -37,7 +37,7 @@ function CustomLegend({ tokens, total }: {
   )
 }
 
-export function PaymentsAmountChart({ data }: { data: PaymentsDailyByToken }) {
+export function FeeTokenAmountChart({ data }: { data: FeeTokenAmountDailyStat }) {
   const total = data.tokens.reduce((s, t) => s + t.total, 0)
 
   return (
@@ -56,7 +56,7 @@ export function PaymentsAmountChart({ data }: { data: PaymentsDailyByToken }) {
             tick={{ fill: '#6B7280', fontSize: 11 }}
             tickFormatter={v => fmtUsd.format(v)}
             width={80}
-            label={{ value: 'Amount (USD)', angle: -90, position: 'insideLeft', fill: '#6B7280', fontSize: 11, style: { textAnchor: 'middle' } }}
+            label={{ value: 'Fee Amount (USD)', angle: -90, position: 'insideLeft', fill: '#6B7280', fontSize: 11, style: { textAnchor: 'middle' } }}
           />
           <Tooltip
             contentStyle={{ backgroundColor: '#13131A', border: '1px solid #1E1E2E', borderRadius: 6 }}

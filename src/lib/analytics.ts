@@ -714,6 +714,54 @@ export async function getFeeTokenAllDailyStats(days = 30): Promise<FeeTokenAllDa
   return result
 }
 
+// ─── Fee token USD amount breakdown (all tokens, dynamic) ────────
+
+export interface FeeTokenAmountDailyStat {
+  /** One entry per day; each keyed by fee_token address → USD amount */
+  days:   Array<Record<string, string | number>>
+  /** Tokens sorted by all-period total descending */
+  tokens: Array<{ address: string; symbol: string; total: number }>
+}
+
+export async function getFeeTokenAmountDailyStats(days = 30): Promise<FeeTokenAmountDailyStat> {
+  const key = `analytics:fee_token_amount_daily:${days}`
+  const cached = await getCached<FeeTokenAmountDailyStat>(key)
+  if (cached) return cached
+
+  const rows = await queryClickHouse<{ day: string; fee_token: string; fee_usd: string }>(`
+    SELECT day, fee_token, sum(fee_usd) AS fee_usd
+    FROM mv_fee_token_amount_daily
+    WHERE day >= today() - ${days}
+    GROUP BY day, fee_token
+    ORDER BY day ASC, fee_usd DESC
+  `)
+
+  const tokenTotals = new Map<string, number>()
+  for (const r of rows) {
+    tokenTotals.set(r.fee_token, (tokenTotals.get(r.fee_token) ?? 0) + Number(r.fee_usd))
+  }
+
+  const tokenEntries = await Promise.all(
+    [...tokenTotals.entries()].map(async ([address, total]) => {
+      const info = await getTokenInfo(address, { skipRPC: true })
+      return { address, symbol: info?.symbol ?? `${address.slice(0, 6)}…${address.slice(-4)}`, total }
+    })
+  )
+  tokenEntries.sort((a, b) => b.total - a.total)
+
+  const dayMap = new Map<string, Record<string, string | number>>()
+  for (const r of rows) {
+    const day = String(r.day).slice(0, 10)
+    if (!dayMap.has(day)) dayMap.set(day, { day })
+    dayMap.get(day)![r.fee_token] = Number(r.fee_usd)
+  }
+  const dayRows = [...dayMap.values()].sort((a, b) => String(a.day).localeCompare(String(b.day)))
+
+  const result: FeeTokenAmountDailyStat = { days: dayRows, tokens: tokenEntries }
+  await setCached(key, result, 900)
+  return result
+}
+
 export interface ProtocolDexDailyStat {
   day: string
   swaps: number

@@ -15,9 +15,10 @@ CLICKHOUSE_BASE_URL="${CLICKHOUSE_URL%/}"
 TIDX_BASE_URL="${TIDX_URL%/}"
 
 ch() {
+  printf '%s' "$1" | \
   curl -fsS \
-    --data-urlencode "query=$1" \
-    "${CLICKHOUSE_BASE_URL}/?database=${CLICKHOUSE_DB}"
+    "${CLICKHOUSE_BASE_URL}/?database=${CLICKHOUSE_DB}" \
+    --data-binary @-
 }
 
 fail() {
@@ -49,16 +50,16 @@ else
   fail "Total txs too low: $TX_COUNT (expected >= 15,700,000)"
 fi
 
-echo "2. PostgreSQL <-> ClickHouse consistency..."
+echo "2. TIDX pipeline freshness..."
 TIDX_STATUS=$(curl -fsS "${TIDX_BASE_URL}/status")
-PG_TX=$(echo "$TIDX_STATUS" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['chains'][0]['postgres']['txs_count'])")
-CH_TX=$(echo "$TIDX_STATUS" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['chains'][0]['clickhouse']['txs_count'])")
+TIDX_LAG=$(echo "$TIDX_STATUS" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['chains'][0]['lag'])")
+PG_TX=$(echo "$TIDX_STATUS" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['chains'][0]['postgres']['txs'])")
+CH_TX=$(echo "$TIDX_STATUS" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['chains'][0]['clickhouse']['txs'])")
 DIFF=$(python3 -c "print(abs($CH_TX - $PG_TX))")
-PCT=$(python3 -c "print(f'{abs($CH_TX - $PG_TX)/$PG_TX*100:.4f}')")
-if python3 -c "exit(0 if abs($CH_TX - $PG_TX) / $PG_TX < 0.001 else 1)"; then
-  pass "PG ($PG_TX) <-> CH ($CH_TX) within 0.1% (diff: $DIFF = $PCT%)"
+if python3 -c "exit(0 if int('$TIDX_LAG') <= 25 and abs(int('$CH_TX') - int('$PG_TX')) <= 25 else 1)"; then
+  pass "TIDX lag $TIDX_LAG blocks; PG tx watermark $PG_TX <-> CH tx watermark $CH_TX (diff: $DIFF)"
 else
-  fail "PG ($PG_TX) <-> CH ($CH_TX) diverge by $PCT% - re-run tidx or check for gaps"
+  fail "TIDX lag/watermark too high: lag=$TIDX_LAG, PG tx watermark=$PG_TX, CH tx watermark=$CH_TX, diff=$DIFF"
 fi
 
 echo "3. Daily stats completeness..."
@@ -111,8 +112,8 @@ else
 fi
 
 echo "9. Protocol DEX MV has expected swap volume..."
-PROTOCOL_SWAPS=$(ch "SELECT sum(swaps) FROM ${CLICKHOUSE_DB}.mv_protocol_dex_daily")
-PROTOCOL_VOL=$(ch "SELECT round(sum(volume_raw)/1e6) FROM ${CLICKHOUSE_DB}.mv_protocol_dex_daily")
+PROTOCOL_SWAPS=$(ch "SELECT sum(swaps) FROM ${CLICKHOUSE_DB}.mv_protocol_dex_volume_totals_daily")
+PROTOCOL_VOL=$(ch "SELECT round(sum(volume_raw)/1e6) FROM ${CLICKHOUSE_DB}.mv_protocol_dex_volume_totals_daily")
 if python3 -c "exit(0 if float('$PROTOCOL_SWAPS') >= 50000 and float('$PROTOCOL_VOL') >= 1000000 else 1)"; then
   pass "Protocol DEX swaps: $PROTOCOL_SWAPS, volume: \$$PROTOCOL_VOL"
 else

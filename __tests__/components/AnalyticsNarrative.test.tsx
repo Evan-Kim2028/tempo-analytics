@@ -10,6 +10,7 @@ jest.mock('recharts', () => {
   return {
     ResponsiveContainer: Container,
     LineChart: Container,
+    AreaChart: Container,
     BarChart: Container,
     CartesianGrid: () => null,
     XAxis: () => null,
@@ -17,6 +18,7 @@ jest.mock('recharts', () => {
     Tooltip: () => null,
     Legend: () => null,
     Line: Series,
+    Area: Series,
     Bar: Series,
   }
 })
@@ -27,7 +29,7 @@ describe('AnalyticsNarrative', () => {
       { day: '2026-04-01', tempo_txs: 50, total_txs: 200, tempo_pct: 25 },
     ]
     const featureAdoption = [
-      { day: '2026-04-01', sponsored_pct: 4, batched_pct: 2, time_bounded_pct: 80, fee_token_set_pct: 25 },
+      { day: '2026-04-01', total_txs: 1000, sponsored_txs: 40, batched_txs: 20, time_bounded_txs: 800, fee_token_set_txs: 250, sponsored_pct: 4, batched_pct: 2, time_bounded_pct: 80, fee_token_set_pct: 25 },
     ]
     const feeTokenMix = {
       rows: [{ day: '2026-04-01', 'USDC.e': 74, 'pathUSD': 26 }],
@@ -76,7 +78,7 @@ describe('AnalyticsNarrative', () => {
       { day: '2026-04-01', tempo_txs: 50, total_txs: 200, tempo_pct: 25 },
     ]
     const featureAdoption = [
-      { day: '2026-04-01', sponsored_pct: 4, batched_pct: 2, time_bounded_pct: 80, fee_token_set_pct: 25 },
+      { day: '2026-04-01', total_txs: 1000, sponsored_txs: 40, batched_txs: 20, time_bounded_txs: 800, fee_token_set_txs: 250, sponsored_pct: 4, batched_pct: 2, time_bounded_pct: 80, fee_token_set_pct: 25 },
     ]
     const feeTokenMix = {
       rows: [{ day: '2026-04-01', 'USDC.e': 74, 'pathUSD': 26 }],

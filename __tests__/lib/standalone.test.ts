@@ -94,6 +94,24 @@ test('resolveManagedStartSpec prefers standalone when build output exists', asyn
   await rm(rootDir, { recursive: true, force: true })
 })
 
+test('resolveManagedStartSpec prepares standalone static assets before returning standalone', async () => {
+  const rootDir = mkdtempSync(join(tmpdir(), 'tempo-analytics-managed-assets-'))
+
+  mkdirSync(join(rootDir, '.next', 'static', 'chunks'), { recursive: true })
+  mkdirSync(join(rootDir, '.next', 'standalone'), { recursive: true })
+  writeFileSync(join(rootDir, '.next', 'static', 'chunks', 'app.js'), 'console.log("client")')
+  writeFileSync(join(rootDir, '.next', 'standalone', 'server.js'), 'console.log("ok")')
+  writeFileSync(join(rootDir, '.env'), 'FOO=bar\n')
+
+  await resolveManagedStartSpec(rootDir, { nodeExecutable: '/usr/bin/node', port: '3001' })
+
+  expect(
+    readFileSync(join(rootDir, '.next', 'standalone', '.next', 'static', 'chunks', 'app.js'), 'utf8')
+  ).toBe('console.log("client")')
+
+  await rm(rootDir, { recursive: true, force: true })
+})
+
 test('resolveManagedStartSpec falls back to next dev when standalone build is missing', async () => {
   const rootDir = mkdtempSync(join(tmpdir(), 'tempo-analytics-managed-dev-'))
 

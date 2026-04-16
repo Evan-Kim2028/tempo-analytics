@@ -72,6 +72,7 @@ import {
   getStablecoinSupplyHistory,
   getDexDailyVolumeUSD,
   getFeeTokenAllDailyStats,
+  getFeeTokenAmountDailyStats,
   getProtocolDexTokenDailyStats,
 } from '@/lib/analytics'
 
@@ -84,6 +85,8 @@ import {
 } from '@/lib/tempoAnalytics'
 
 import { getBridgeNetInflowChartData } from '@/lib/bridges'
+
+import { getPaymentsDailyByToken, getMicropaymentStatsDaily } from '@/lib/payments'
 
 import { expectRechartsRows, expectPivotContract } from '../helpers/chart-contract'
 
@@ -427,5 +430,156 @@ describe('getBridgeNetInflowChartData → BridgeNetInflowChart', () => {
     if (data.providers.length > 2) {
       expect(data.providers[1].total).toBeGreaterThanOrEqual(data.providers[2].total)
     }
+  })
+})
+
+// Chart: PaymentsAmountChart (stacked by token)
+// DataKeys: token addresses (dynamic, from data.tokens[].address)
+describe('getPaymentsDailyByToken → PaymentsAmountChart', () => {
+  const USDC_E  = '0x20c000000000000000000000b9537d11c60e8b50'
+  const PATHUSD = '0x20c0000000000000000000000000000000000000'
+
+  test('pivot contract: token addresses appear as numeric keys in days rows', async () => {
+    mockQueryOnce([
+      { day: '2026-04-01', token: USDC_E,  total_amount: '150.50' },
+      { day: '2026-04-01', token: PATHUSD, total_amount: '30.00' },
+      { day: '2026-04-02', token: USDC_E,  total_amount: '200.00' },
+    ])
+    mockGetTokenInfo
+      .mockResolvedValueOnce({ symbol: 'USDC.e', name: 'USD Coin (Bridged)', decimals: 6, address: USDC_E })
+      .mockResolvedValueOnce({ symbol: 'pathUSD', name: 'pathUSD', decimals: 6, address: PATHUSD })
+
+    const data = await getPaymentsDailyByToken(2)
+    expectPivotContract(
+      data.days as never,
+      data.tokens.map(t => ({ key: t.address })),
+    )
+  })
+
+  test('pivot contract: unknown token falls back to address key and still has finite value', async () => {
+    mockQueryOnce([
+      { day: '2026-04-01', token: USDC_E, total_amount: '500.00' },
+    ])
+    mockGetTokenInfo.mockResolvedValueOnce(null)
+
+    const data = await getPaymentsDailyByToken(1)
+    expectPivotContract(
+      data.days as never,
+      data.tokens.map(t => ({ key: t.address })),
+    )
+  })
+
+  test('tokens are sorted by total descending', async () => {
+    mockQueryOnce([
+      { day: '2026-04-01', token: PATHUSD, total_amount: '10.00' },
+      { day: '2026-04-01', token: USDC_E,  total_amount: '500.00' },
+    ])
+    mockGetTokenInfo
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+
+    const data = await getPaymentsDailyByToken(1)
+    expect(data.tokens[0].total).toBeGreaterThanOrEqual(data.tokens[1].total)
+  })
+})
+
+// Chart: MicropaymentTierChart, MicropaymentVsLargeChart
+// DataKeys: sub_cent_count, sub_nickel_count, sub_dime_count, large_count, micro_count
+describe('getMicropaymentStatsDaily → MicropaymentTierChart / MicropaymentVsLargeChart', () => {
+  test('contract: all tier count fields are finite numbers', async () => {
+    mockQueryOnce([
+      {
+        day: '2026-04-01',
+        sub_cent_count: '82000', sub_cent_amount: '150.5',
+        sub_nickel_count: '12000', sub_nickel_amount: '310.2',
+        sub_dime_count: '4000', sub_dime_amount: '280.0',
+        large_count: '14000', large_amount: '95000.0',
+      },
+      {
+        day: '2026-04-02',
+        sub_cent_count: '75000', sub_cent_amount: '140.1',
+        sub_nickel_count: '11000', sub_nickel_amount: '290.5',
+        sub_dime_count: '3800', sub_dime_amount: '265.3',
+        large_count: '13500', large_amount: '90000.0',
+      },
+    ])
+    const rows = await getMicropaymentStatsDaily(2)
+    expectRechartsRows(rows as never, ['sub_cent_count', 'sub_nickel_count', 'sub_dime_count', 'large_count', 'micro_count'])
+  })
+
+  test('contract: zero values are valid finite numbers', async () => {
+    mockQueryOnce([
+      {
+        day: '2026-04-01',
+        sub_cent_count: '0', sub_cent_amount: '0',
+        sub_nickel_count: '0', sub_nickel_amount: '0',
+        sub_dime_count: '0', sub_dime_amount: '0',
+        large_count: '0', large_amount: '0',
+      },
+    ])
+    const rows = await getMicropaymentStatsDaily(1)
+    expectRechartsRows(rows as never, ['sub_cent_count', 'sub_nickel_count', 'sub_dime_count', 'large_count', 'micro_count'])
+  })
+
+  test('contract: micro_count equals sum of three sub-tiers', async () => {
+    mockQueryOnce([
+      {
+        day: '2026-04-01',
+        sub_cent_count: '100', sub_cent_amount: '0.5',
+        sub_nickel_count: '50', sub_nickel_amount: '1.5',
+        sub_dime_count: '25', sub_dime_amount: '2.0',
+        large_count: '200', large_amount: '500.0',
+      },
+    ])
+    const rows = await getMicropaymentStatsDaily(1)
+    expect(rows[0].micro_count).toBe(rows[0].sub_cent_count + rows[0].sub_nickel_count + rows[0].sub_dime_count)
+  })
+})
+
+// Chart: FeeTokenAmountChart
+// DataKeys: fee_token addresses (dynamic, from data.tokens[].address)
+describe('getFeeTokenAmountDailyStats → FeeTokenAmountChart', () => {
+  const TOKEN_A = '0xaaaa000000000000000000000000000000000000'
+  const TOKEN_B = '0xbbbb000000000000000000000000000000000000'
+
+  test('pivot contract: token addresses appear as numeric keys in days rows', async () => {
+    mockQueryOnce([
+      { day: '2026-04-01', fee_token: TOKEN_A, fee_usd: '0.042' },
+      { day: '2026-04-01', fee_token: TOKEN_B, fee_usd: '0.010' },
+      { day: '2026-04-02', fee_token: TOKEN_A, fee_usd: '0.038' },
+    ])
+    mockGetTokenInfo
+      .mockResolvedValueOnce({ symbol: 'USDC.e', name: 'USD Coin (Bridged)', decimals: 6, address: TOKEN_A })
+      .mockResolvedValueOnce({ symbol: 'pathUSD', name: 'pathUSD', decimals: 6, address: TOKEN_B })
+
+    const data = await getFeeTokenAmountDailyStats(2)
+    expectPivotContract(
+      data.days as never,
+      data.tokens.map(t => ({ key: t.address })),
+    )
+  })
+
+  test('pivot contract: zero fee_usd is a valid finite number (no NaN)', async () => {
+    mockQueryOnce([
+      { day: '2026-04-01', fee_token: TOKEN_A, fee_usd: '0' },
+    ])
+    mockGetTokenInfo.mockResolvedValueOnce(null)
+
+    const data = await getFeeTokenAmountDailyStats(1)
+    expectPivotContract(
+      data.days as never,
+      data.tokens.map(t => ({ key: t.address })),
+    )
+  })
+
+  test('tokens are sorted by total descending', async () => {
+    mockQueryOnce([
+      { day: '2026-04-01', fee_token: TOKEN_B, fee_usd: '0.001' },
+      { day: '2026-04-01', fee_token: TOKEN_A, fee_usd: '0.050' },
+    ])
+    mockGetTokenInfo.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
+
+    const data = await getFeeTokenAmountDailyStats(1)
+    expect(data.tokens[0].total).toBeGreaterThanOrEqual(data.tokens[1].total)
   })
 })

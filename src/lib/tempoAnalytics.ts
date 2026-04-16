@@ -43,6 +43,11 @@ export interface TempoTxSharePoint {
 
 export interface TempoFeatureAdoptionPoint {
   day: string
+  total_txs: number
+  sponsored_txs: number
+  batched_txs: number
+  time_bounded_txs: number
+  fee_token_set_txs: number
   sponsored_pct: number
   batched_pct: number
   time_bounded_pct: number
@@ -150,6 +155,11 @@ export async function getTempoFeatureAdoptionByDay(days = 30): Promise<TempoFeat
       const total = Math.max(toNumber(row.total_txs), 1)
       return {
         day: sliceDay(row.day),
+        total_txs: toNumber(row.total_txs),
+        sponsored_txs: toNumber(row.sponsored_txs),
+        batched_txs: toNumber(row.batched_txs),
+        time_bounded_txs: toNumber(row.time_bounded_txs),
+        fee_token_set_txs: toNumber(row.fee_token_set_txs),
         sponsored_pct: Number(((toNumber(row.sponsored_txs) * 100) / total).toFixed(2)),
         batched_pct: Number(((toNumber(row.batched_txs) * 100) / total).toFixed(2)),
         time_bounded_pct: Number(((toNumber(row.time_bounded_txs) * 100) / total).toFixed(2)),
@@ -160,7 +170,7 @@ export async function getTempoFeatureAdoptionByDay(days = 30): Promise<TempoFeat
 }
 
 export async function getFeeTokenMixByDay(days = 30): Promise<FeeTokenMixPoint[]> {
-  const key = `tempo-analytics:fee-token-mix:${days}`
+  const key = `tempo-analytics:fee-token-mix-v2:${days}`
   return getCachedQuery(key, async () => {
     const rows = await queryClickHouse<{
       day: string
@@ -176,7 +186,7 @@ export async function getFeeTokenMixByDay(days = 30): Promise<FeeTokenMixPoint[]
       FROM (
         SELECT
           toDate(block_timestamp) AS day,
-          concat('0x', lower(hex(fee_token))) AS fee_token,
+          lower(fee_token) AS fee_token,
           count() AS txs
         FROM tidx_4217.txs
         WHERE block_timestamp >= now() - INTERVAL ${days} DAY
@@ -204,7 +214,7 @@ export interface FeeTokenMixChartData {
 }
 
 export async function getFeeTokenMixChartData(days = 30): Promise<FeeTokenMixChartData> {
-  const key = `tempo-analytics:fee-token-mix-chart:${days}`
+  const key = `tempo-analytics:fee-token-mix-chart-v2:${days}`
   const cached = await getCached<FeeTokenMixChartData>(key)
   if (cached !== null) return cached
 

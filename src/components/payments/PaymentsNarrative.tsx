@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { PaymentCounterpartyRow, PaymentsDailyPoint } from '@/lib/payments'
+import type { PaymentCounterpartyRow, PaymentsDailyByToken, PaymentsDailyPoint } from '@/lib/payments'
 import { PaymentsAmountChart } from '@/components/charts/PaymentsAmountChart'
 import { PaymentsCountChart } from '@/components/charts/PaymentsCountChart'
 import { PaymentsMemoPatternChart } from '@/components/charts/PaymentsMemoPatternChart'
@@ -52,11 +52,13 @@ function CounterpartyList({ title, rows }: { title: string; rows: PaymentCounter
 
 export function PaymentsNarrative({
   daily,
+  dailyByToken,
   topRecipientsByAmount,
   topRecipientsByCount,
   topSenders,
 }: {
   daily: PaymentsDailyPoint[]
+  dailyByToken: PaymentsDailyByToken
   topRecipientsByAmount: PaymentCounterpartyRow[]
   topRecipientsByCount: PaymentCounterpartyRow[]
   topSenders: PaymentCounterpartyRow[]
@@ -68,7 +70,7 @@ export function PaymentsNarrative({
       </ChartCard>
 
       <ChartCard title="Daily Payment Amount">
-        <PaymentsAmountChart data={daily} />
+        <PaymentsAmountChart data={dailyByToken} />
       </ChartCard>
 
       <ChartCard title="Memo Pattern Mix">

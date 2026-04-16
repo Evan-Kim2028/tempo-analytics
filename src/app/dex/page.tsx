@@ -2,6 +2,7 @@ import {
   getDexDailyVolumeUSD,
   getTopPools,
   getFeeTokenAllDailyStats,
+  getFeeTokenAmountDailyStats,
   getProtocolDexDailyStats,
   getProtocolDexTokenDailyStats,
   getProtocolDexPools,
@@ -9,6 +10,7 @@ import {
 } from '@/lib/analytics'
 import { DexVolumeChart } from '@/components/charts/DexVolumeChart'
 import { FeeTokenAllChart } from '@/components/charts/FeeTokenAllChart'
+import { FeeTokenAmountChart } from '@/components/charts/FeeTokenAmountChart'
 import { ProtocolDexTokenChart } from '@/components/charts/ProtocolDexTokenChart'
 import { getProtocolDexTVL, getCommunityDexTVL } from '@/lib/defi'
 import { StatCard } from '@/components/StatCard'
@@ -43,8 +45,9 @@ export default async function DexPage({
   const { days: rawDays } = await searchParams
   const days = parseDays(rawDays)
 
-  const [feeData, protocolDaily, protocolTokenData, communityDaily, pools, protocolTVL, communityTVL, protocolDexPools] = await Promise.all([
+  const [feeData, feeAmountData, protocolDaily, protocolTokenData, communityDaily, pools, protocolTVL, communityTVL, protocolDexPools] = await Promise.all([
     getFeeTokenAllDailyStats(days),
+    getFeeTokenAmountDailyStats(days),
     getProtocolDexDailyStats(days),
     getProtocolDexTokenDailyStats(days),
     getDexDailyVolumeUSD(days),
@@ -121,6 +124,13 @@ export default async function DexPage({
           <div className="bg-tempo-card border border-tempo-border rounded-lg p-6">
             <h3 className="text-sm font-medium text-white mb-4">Daily Fee Token Usage ({periodLabel})</h3>
             <FeeTokenAllChart data={feeData} />
+          </div>
+        )}
+
+        {feeAmountData.days.length > 0 && (
+          <div className="bg-tempo-card border border-tempo-border rounded-lg p-6 mt-4">
+            <h3 className="text-sm font-medium text-white mb-4">Daily Fee Token Amount — USD ({periodLabel})</h3>
+            <FeeTokenAmountChart data={feeAmountData} />
           </div>
         )}
       </section>

@@ -4,12 +4,22 @@ jest.mock('@/lib/cache', () => ({
   setCached: jest.fn(),
 }))
 
+jest.mock('@/lib/tokens', () => ({
+  getTokenInfo:         jest.fn().mockResolvedValue(null),
+  KNOWN_TOKENS:         {},
+  EXCLUDED_TOKENS:      new Set(),
+  STABLECOIN_ADDRESSES: [
+    '0x20c0000000000000000000000000000000000000',
+    '0x20c000000000000000000000b9537d11c60e8b50',
+  ],
+  formatTokenAmount: jest.fn().mockReturnValue('0.00'),
+}))
+
 import { queryClickHouse } from '@/lib/clickhouse'
 import { getCached, setCached } from '@/lib/cache'
 import {
   classifyMemoFamily,
   decodeMemoHex,
-  PAYMENT_METHODS,
   getPaymentsDaily,
   getPaymentsPageData,
   getPaymentsSummary,
@@ -31,16 +41,6 @@ beforeEach(() => {
   )
   mockSetCached.mockImplementation(async (key: string, value: unknown) => {
     cacheStore.set(key, value)
-  })
-})
-
-test('exports the confirmed pathUSD payment rail', () => {
-  expect(PAYMENT_METHODS).toContainEqual({
-    token: '0x20c0000000000000000000000000000000000000',
-    token_label: 'pathUSD',
-    call_selector: '0x95777d59',
-    event_selector: '0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0',
-    decimals: 6,
   })
 })
 
