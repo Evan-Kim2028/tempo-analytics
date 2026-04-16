@@ -10,13 +10,13 @@
 
 ## Executive Summary
 
-84% of all payment transactions on Tempo move less than $0.10. The chain is already functioning as a micropayment rail at scale — roughly 130,000 sub-dime transactions per month — and the economics reveal something important for the chain's long-term health: **micropayments are the chain's most gas-revenue-efficient transaction type, by a wide margin**.
+86% of all payment transactions on Tempo move less than $0.10. The chain is already functioning as a micropayment rail at scale — roughly 128,000 sub-dime transactions per month — and the economics reveal something important for the chain's long-term health: **micropayments are the chain's most gas-revenue-efficient transaction type, by a wide margin**.
 
 Because `transferWithMemo` costs the same fixed gas regardless of how much value is transferred, high-frequency small payments generate far more gas revenue per dollar of economic activity than infrequent large ones. At $0.01 per payment, $100 of micropayment volume produces **~$15 in gas fees** (10,000 txs × $0.00152). The same $100 as a single transfer produces **$0.0015** — a 10,000× difference in chain revenue for the same economic volume.
 
-A deep investigation of the memo field, sender funding patterns, and protocol markers reveals something more specific: **Tempo's micropayment activity is almost entirely driven by one platform operating a wallet factory of 13,616+ addresses**, using the chain as a high-frequency settlement bus. The dollar amounts are signals, not value transfers. The memo is the product.
+A deep investigation of the memo field, sender funding patterns, and protocol markers reveals something more specific: **Tempo's micropayment activity is almost entirely driven by one platform operating a wallet factory of 13,611+ addresses**, using the chain as a high-frequency settlement bus. The dollar amounts are signals, not value transfers. The memo is the product.
 
-There is no evidence of HTTP 402 / Machine Payable Protocol usage yet. The `mppshafu` format is the closest thing — a compact payment-proof format that could power pay-per-request APIs, but only 30 payments exist in 90 days.
+There is no organic HTTP 402 / Machine Payable Protocol usage yet. The `mppshafu` format is the closest thing — a compact payment-proof format that could power pay-per-request APIs. The 90-day record contains 3,641 mppshafu payments totaling $3,403, but all of them came from a single automated test run (1 sender → 1 recipient) over a 70-minute window on Feb 16, 2026. Someone built and stress-tested it. No live product has launched on top of it yet.
 
 ---
 
@@ -26,14 +26,14 @@ All figures: 17 whitelisted stablecoins, excluding zero-address mints. See [Q1](
 
 | Tier | Tx Count | % of Txs | Total USD Moved | % of USD | Avg Payment | Avg Gas Cost | Unique Senders | Unique Recipients |
 |------|----------|-----------|-----------------|----------|-------------|--------------|----------------|-------------------|
-| **Under $0.01** | 92,699 | **54%** | $259 | 0.07% | $0.00322 | $0.00127 | 1,840 | 202 |
-| **$0.01–$0.10** | 50,352 | **30%** | $1,342 | 0.37% | $0.02952 | $0.00196 | 2,218 | 5,534 |
-| $0.10–$1.00 | 18,198 | 10.6% | $6,015 | 1.6% | $0.381 | $0.00150 | 1,939 | 632 |
-| $1–$10 | 3,840 | 2.2% | $10,623 | 2.9% | $2.89 | $0.00326 | 1,055 | 823 |
-| $10–$100 | 758 | 0.4% | $20,000 | 5.5% | $26.37 | $0.00292 | 373 | 156 |
-| $100+ | 459 | 0.3% | $329,562 | **89.7%** | $717 | $0.00292 | 140 | 62 |
+| **Under $0.01** | 81,919 | **55%** | $260 | 0.07% | $0.00317 | $0.00127 | 1,870 | 210 |
+| **$0.01–$0.10** | 46,178 | **31%** | $1,354 | 0.37% | $0.02931 | $0.00196 | 2,273 | 5,535 |
+| $0.10–$1.00 | 16,006 | 10.7% | $6,137 | 1.7% | $0.383 | $0.00150 | 2,070 | 634 |
+| $1–$10 | 3,613 | 2.4% | $10,642 | 2.9% | $2.95 | $0.00318 | 1,068 | 822 |
+| $10–$100 | 758 | 0.5% | $20,000 | 5.4% | $26.39 | $0.00326 | 373 | 156 |
+| $100+ | 459 | 0.3% | $329,562 | **89.6%** | $718 | $0.00292 | 140 | 62 |
 
-**84% of transactions are under $0.10 but carry only 0.44% of value.** 459 transactions over $100 moved 90% of everything. The value distribution and the gas revenue distribution point in completely opposite directions — see §2.1 for why that's good for the chain.
+**86% of transactions are under $0.10 but carry only 0.44% of value.** 459 transactions over $100 moved 90% of everything. The value distribution and the gas revenue distribution point in completely opposite directions — see §2.1 for why that's good for the chain.
 
 ### 1.1 Sub-tier Breakdown Within Micropayments (Last 30 Days)
 
@@ -41,10 +41,10 @@ The under-$0.10 bucket breaks down further. See [Q2](#q2-micropayment-sub-tier-b
 
 | Sub-tier | Tx Count | % of Micropayments | Total USD Moved | Avg Payment |
 |----------|----------|--------------------|-----------------|-------------|
-| **Under $0.01** | 81,679 | **64%** | $259 | $0.00317 |
-| **$0.01–$0.05** | 37,454 | **29%** | $822 | $0.02195 |
-| **$0.05–$0.10** | 8,485 | **7%** | $522 | $0.06152 |
-| **Total <$0.10** | **127,618** | 100% | $1,603 | $0.01257 |
+| **Under $0.01** | 81,919 | **64%** | $260 | $0.00317 |
+| **$0.01–$0.05** | 37,580 | **29%** | $825 | $0.02195 |
+| **$0.05–$0.10** | 8,598 | **7%** | $529 | $0.06151 |
+| **Total <$0.10** | **128,097** | 100% | $1,614 | $0.01260 |
 
 The under-$0.01 tier is almost entirely ef1e sub-cent signals ($0.001–$0.005 fixed amounts). The $0.01–$0.05 tier is still mostly ef1e but includes some SOC-* reconciliation payments. The $0.05–$0.10 tier is the most organic — consumer micro-tips, travel micro-settlements, and B2B reconciliation references.
 
@@ -56,8 +56,8 @@ A `transferWithMemo` costs approximately **51,287 gas at ~20 gwei ≈ $0.00152 U
 
 | Tier | Avg Payment | Avg Gas | Gas as % of Payment | Txs where gas > payment |
 |------|-------------|---------|---------------------|--------------------------|
-| Under $0.01 | $0.00322 | $0.00127 | **39%** | 37,985 (41%) |
-| $0.01–$0.10 | $0.02952 | $0.00196 | 6.6% | 318 (0.6%) |
+| Under $0.01 | $0.00317 | $0.00127 | **39.5%** | 38,073 (41%) |
+| $0.01–$0.10 | $0.02931 | $0.00196 | 6.6% | 318 (0.6%) |
 | $0.10–$1.00 | $0.381 | $0.00150 | 0.4% | 0 |
 | $1+ | $2.89+ | ~$0.003 | <0.1% | 0 |
 
@@ -65,31 +65,31 @@ A `transferWithMemo` costs approximately **51,287 gas at ~20 gwei ≈ $0.00152 U
 
 | Metric | Value |
 |--------|-------|
-| Total transactions | ~130,000 |
-| Total value moved | ~$1,600 |
-| Total gas fees paid | ~$217 |
+| Total transactions | ~128,000 |
+| Total value moved | ~$1,614 |
+| Total gas fees paid | ~$210 |
 | Effective fee rate | **~13%** |
 
-For comparison: Visa charges 1.5–3%. An Ethereum L1 equivalent transfer would cost roughly $3–7 at typical gas prices. Tempo is orders of magnitude cheaper per transaction in absolute terms, but at sub-cent payment sizes, gas as a percentage of value is still high. The math improves dramatically with batch transactions (currently at 0.24% adoption) or lower gas prices.
+For comparison: Visa charges 1.5–3%. An Ethereum L1 equivalent transfer would cost roughly $3–7 at typical gas prices. Tempo is orders of magnitude cheaper per transaction in absolute terms, but at sub-cent payment sizes, gas as a percentage of value is still high. The math improves dramatically with batch transactions or lower gas prices.
 
 ### 2.1 Micropayments Are the Chain's Most Gas-Revenue-Efficient Transaction Type
 
 Because `transferWithMemo` costs the same fixed gas regardless of transfer amount, the chain earns gas revenue proportional to *transaction count*, not *dollar value*. This makes micropayments — high transaction count, low value — the most efficient gas revenue source per dollar of economic activity on the chain.
 
-**Gas revenue per $1 of value transferred, by tier** (derived from §1 tier table; see [Q4](#q4-gas-revenue-efficiency-by-tier)):
+**Gas revenue per $1 of value transferred, by tier** (see [Q4](#q4-gas-revenue-efficiency-by-tier)):
 
 | Tier | Total Value | Total Gas | Gas per $1 of Value |
 |------|-------------|-----------|---------------------|
-| **Under $0.01** | $259 | ~$118 | **$0.455 (45.5%)** |
-| **$0.01–$0.10** | $1,342 | ~$99 | **$0.074 (7.4%)** |
-| $0.10–$1.00 | $6,015 | ~$27 | $0.0045 (0.45%) |
-| $1–$10 | $10,623 | ~$13 | $0.0012 (0.12%) |
-| $10–$100 | $20,000 | ~$2.21 | $0.00011 (0.01%) |
-| $100+ | $329,562 | ~$1.34 | **$0.0000041 (0.0004%)** |
+| **Under $0.01** | $300 | $118 | **$0.395 (39.5%)** |
+| **$0.01–$0.10** | $1,498 | $99 | **$0.066 (6.6%)** |
+| $0.10–$1.00 | $7,050 | $28 | $0.0039 (0.39%) |
+| $1–$10 | $11,106 | $13 | $0.0011 (0.11%) |
+| $10–$100 | $20,442 | $2.47 | $0.00012 (0.012%) |
+| $100+ | $345,363 | $1.22 | **$0.0000035 (0.00035%)** |
 
-> **How the "Total Gas" column is derived:** each row multiplies the tier's tx count by its avg gas/tx from the §1 table. These are approximations; the exact figures require a full JOIN query (see Q4).
+> **Source:** Q4 full JOIN (logs → receipts), exact figures.
 
-The chain earns **~110,000× more gas revenue** per dollar flowing through the sub-cent tier than per dollar flowing through the $100+ tier — because sub-cent payments average $0.003 each, meaning $1 of value represents ~333 transactions.
+The chain earns **~110,000× more gas revenue** per dollar flowing through the sub-cent tier than per dollar flowing through the $100+ tier — because sub-cent payments average $0.003 each, meaning $1 of value represents ~333 transactions. (Exact ratio from Q4: 0.395 / 0.0000035 ≈ 113,000×.)
 
 Using $0.01 as a more conservative micropayment baseline (a round, realistic payment size):
 
@@ -106,8 +106,8 @@ Both micro and large payments call the same `transferWithMemo` function — same
 
 | Category | Tx Count | Avg Gas/Tx | Total Gas |
 |----------|----------|------------|-----------|
-| **Micropayments (<$0.10)** | 138,654 | $0.00152 | **$210** |
-| **Large payments (≥$0.10)** | 23,309 | $0.00186 | $43 |
+| **Micropayments (<$0.10)** | 139,109 | $0.001514 | **$211** |
+| **Large payments (≥$0.10)** | 23,532 | $0.001850 | $44 |
 
 The ~22% gap in average gas/tx is not structural — it reflects gas price variation across different time periods, not different execution cost. The chain doesn't charge more for larger transfers.
 
@@ -119,14 +119,14 @@ Which stablecoin do senders use to pay gas fees? See [Q6](#q6-gas-token-preferen
 
 | Payment Type | USDC.e | pathUSD |
 |--------------|--------|---------|
-| **Micropayments (<$0.10)** | **63.7%** (85,332 txs) | 36.3% (48,693 txs) |
-| **Large payments (≥$0.10)** | 18.2% (4,324 txs) | **81.8%** (19,444 txs) |
+| **Micropayments (<$0.10)** | **63.6%** (85,455 txs) | 36.4% (49,007 txs) |
+| **Large payments (≥$0.10)** | 18.0% (4,325 txs) | **82.0%** (19,662 txs) |
 
 This is a striking reversal. Micropayment senders — almost entirely ef1e bot wallets — strongly prefer **USDC.e for gas**. Large payment senders strongly prefer **pathUSD**. The reason is structural: the master distributor loads wallets with USDC.e, so those wallets use USDC.e for both the payment and the gas fee. Large payment senders are organic wallets that acquired pathUSD through the Protocol DEX or received it directly — they pay fees in the chain's native stablecoin.
 
 ---
 
-## 3. The Master Distributor — One Platform, 13,616 Wallets
+## 3. The Master Distributor — One Platform, 13,611 Wallets
 
 The most important structural finding: **the micropayment senders are not independent users**. They are wallets funded by a single distributor address. See [Q7](#q7-master-distributor-analysis).
 
@@ -134,10 +134,10 @@ The most important structural finding: **the micropayment senders are not indepe
 
 | Metric | Value |
 |--------|-------|
-| Unique wallets funded (90d) | **13,616** |
+| Unique wallets funded (90d) | **13,611** |
 | Total USDC.e distributed | **$3.17M** |
-| Total transfers out | 115,559 |
-| Active since | 2026-02-02 |
+| Total transfers out (90d) | 80,572 |
+| Active since | 2026-02-12 |
 | Does it do `transferWithMemo`? | **No — never** |
 
 This address only sends normal ERC-20 transfers (plain `Transfer` events). It never makes memo payments itself. Its entire purpose is pre-loading user wallets with USDC.e before those wallets make ef1e micropayments. Of the ef1e payment senders active in the last 30 days, **1,135 of them were funded by this address** — the vast majority.
@@ -146,7 +146,7 @@ Two secondary distributors:
 - **`0x1086b62b`** — funded 73 wallets, $11,601 distributed, active from Feb 2026
 - **`0x33b90101`** — funded 154 wallets, $4,618 distributed, 8,840 transfers (high-frequency small top-ups)
 
-**This is one company or platform** operating a wallet factory. They pre-fund thousands of wallets, each wallet makes automated ef1e micropayments, and the settlement flows to a single aggregator recipient. None of the 13,616 wallets spontaneously appeared — they were all created and loaded by the same source.
+**This is one company or platform** operating a wallet factory. They pre-fund thousands of wallets, each wallet makes automated ef1e micropayments, and the settlement flows to a single aggregator recipient. None of the 13,611 wallets spontaneously appeared — they were all created and loaded by the same source.
 
 ---
 
@@ -163,7 +163,7 @@ Format: ef1ed712 [10-byte account ID] [20-byte recipient reference]
 Example: ef1ed712014ebd1b9bc9 + 0200000000000000000000e8b4d8da713b7b
 ```
 
-**126,735 micropayments, $1,588 moved, 1,082 unique account IDs.**
+**127,307 micropayments, $1,600 moved, 1,082 unique account IDs.**
 
 The 10-byte account ID selects a sub-account within the platform. The trailing 20 bytes appear to be a secondary recipient or routing reference. Amount values form a fixed vocabulary: `$0.001`, `$0.002`, `$0.003`, `$0.005`, `$0.008`, `$0.015`, `$0.025` — each value likely encodes a transaction type or reward tier rather than actual dollar value. All wallets are funded by `f70da97`.
 
@@ -180,13 +180,13 @@ Format: 6d70707368616675 [24 random bytes]
 Decoded: "mppshafu" + 192-bit cryptographic payload
 ```
 
-**30 payments in 90 days, all $0 or $1 amounts.**
+**3,641 payments in 90 days, totaling $3,403. But:** 1 unique sender, 1 unique recipient, all transactions within a 70-minute window on 2026-02-16. It was a high-volume automated test run, not organic usage.
 
 `mppshafu` decodes to 8 ASCII bytes. The trailing 24 bytes are cryptographically random and unique per payment — almost certainly a hash, HMAC, or compact signature over the payment details (amount, recipient, timestamp).
 
-This format is the closest thing on Tempo to a **pay-per-request receipt**: the payer sends $1, receives a 24-byte proof, and includes that proof as a bearer token in their next request. The server validates the proof against the on-chain payment before serving the response. This is exactly the HTTP 402 Machine Payable Protocol pattern — but with only 30 usages over 90 days, it's a developer experiment, not a live product.
+This format is the closest thing on Tempo to a **pay-per-request receipt**: the payer sends $1, receives a 24-byte proof, and includes that proof as a bearer token in their next request. The server validates the proof against the on-chain payment before serving the response. This is exactly the HTTP 402 Machine Payable Protocol pattern. The 70-minute burst of 3,641 payments is consistent with someone running a load test against a prototype implementation — the system works, but no live product has launched on top of it.
 
-**If this format were to scale, it would be the most technically interesting thing on the chain.**
+**If this format ships as a product, it would be the most technically interesting thing on the chain.**
 
 ---
 
@@ -282,7 +282,7 @@ Decoded: 01 01 "TMPO" [6 zero bytes] 03e8 [18 zero bytes]
 The micropayment senders are **not independent organic users**. They form a clear hub-and-spoke funding graph. See [Q9](#q9-sender-funding-graph).
 
 ```
-f70da97812cb  ──────────────────→  13,616 wallets  →→→  ef1e micropayments
+f70da97812cb  ──────────────────→  13,611 wallets  →→→  ef1e micropayments
 (master distributor, $3.17M)           (user fleet)        (to 1 aggregator)
 
 1086b62bdbec  ──────→  73 wallets
@@ -304,9 +304,9 @@ The INV/TXN/PAY/ORD/REF payments are separate — those come from unconnected wa
 
 ### 5.1 Sponsorship and the Agent Use Case
 
-Tempo supports fee sponsorship (`fee_payer != from`): a relayer address pays the gas on behalf of the sender. About 13–24% of micropayments use this already. See [Q10](#q10-sponsorship-rate).
+Tempo supports fee sponsorship (`fee_payer != from`): a relayer address pays the gas on behalf of the sender. **21.6%** of all `transferWithMemo` transactions over the last 30 days are sponsored. See [Q10](#q10-sponsorship-rate).
 
-The ef1e bot fleet **does not use sponsorship** — each wallet holds its own USDC.e for gas (consistent with the 63.7% USDC.e gas preference in §2.2). This is rational for a well-funded bot fleet: pre-loading wallets avoids relay latency and complexity.
+The ef1e bot fleet **does not use sponsorship** — each wallet holds its own USDC.e for gas (consistent with the 63.6% USDC.e gas preference in §2.2). This is rational for a well-funded bot fleet: pre-loading wallets avoids relay latency and complexity.
 
 **Observational note:** However, agents and automated systems operating at scale on behalf of *users* are the ideal sponsorship use case. An AI agent executing thousands of micro-settlements doesn't want the user to hold gas in every address the agent controls. A single sponsored relayer — funded once by the platform, shared across all agent wallets — amortizes the gas management cost across every micro-settlement the agent makes. The infrastructure cost of running a relayer drops to a negligible fraction of agent payment volume at scale. This applies equally to human-facing apps (where users onboard without pre-loading gas) and to autonomous agents (which shouldn't need per-wallet gas deposits). Neither humans nor agents benefit from managing gas across hundreds of addresses; sponsorship eliminates that friction for both.
 
@@ -322,20 +322,20 @@ HTTP 402 Payment Required is a long-dormant status code. The Machine Payable Pro
 
 | Format | Count | Verdict |
 |--------|-------|---------|
-| `mppshafu` + 24-byte proof | 30 payments (90d) | **Closest match** — compact receipt format, likely a pay-per-request proof system |
+| `mppshafu` + 24-byte proof | 3,641 payments (90d, single load test) | **Closest match** — compact receipt format, pay-per-request proof system; prototype tested, no live product yet |
 | `reputation:successful_trade:95` | 5 payments | Proto-402: pay to assert a claim before interacting |
 | `validated:kyc_verified` | 5 payments | Same — payment as identity proof |
 | `gateway_{CHAIN}_{ts}` | ~30 payments | Pay-to-prove-provenance, not pay-to-access |
-| ef1e format | 126,735 payments | Internal settlement — no MPP characteristics |
+| ef1e format | 127,307 payments | Internal settlement — no MPP characteristics |
 
 ### What's missing
 
 A true 402/MPP flow would show:
 - **Many unique senders → one API endpoint address** — not seen (ef1e is many senders → one aggregator, but bespoke)
 - **Variable amounts matching resource pricing** — not seen (all ef1e amounts are from a fixed vocabulary)
-- **Request-scoped proofs in memo** — `mppshafu` has this, but 30 payments in 90 days is developer testing
+- **Request-scoped proofs in memo** — `mppshafu` has this; the 3,641-payment load test on Feb 16 proves the mechanism works end-to-end, but no live product has surfaced since
 
-**Conclusion:** HTTP 402 / MPP is not here yet. The infrastructure to build it exists perfectly — `transferWithMemo` + proof in `topic3` + ~51,287 gas per call. Someone needs to build the client SDK and the first API product.
+**Conclusion:** HTTP 402 / MPP is not live yet. The infrastructure exists and has been prototype-tested — `transferWithMemo` + proof in `topic3` + ~51,287 gas per call. The next step is a client SDK and the first API product built on top of the tested prototype.
 
 ---
 
@@ -344,38 +344,37 @@ A true 402/MPP flow would show:
 | Metric | Value |
 |--------|-------|
 | Gas per `transferWithMemo` | ~51,287 gas / ~$0.00152 |
-| % of payments under $0.10 | **84%** |
+| % of payments under $0.10 | **86%** |
 | % of value in sub-$0.10 payments | **0.44%** |
 | Sub-cent payments where gas > payment | **41%** |
 | Effective fee rate on all micropayments | **~13%** |
 | Gas on $100 of $0.01 micropayments | **~$15** (10,000 txs × $0.00152) |
 | Gas on $100 as a single large transfer | **~$0.0015** (1 tx) |
 | Revenue efficiency: micro vs single transfer | **~10,000× at $0.01/payment** |
-| Avg gas/tx: micropayments vs large payments | $0.00152 vs $0.00186 (same function) |
-| Gas token: micropayment senders | **63.7% USDC.e**, 36.3% pathUSD |
-| Gas token: large payment senders | 81.8% pathUSD, **18.2% USDC.e** |
-| Sub-cent txs (<$0.01) | **81,679** (64% of all micropayments) |
-| Sub-nickel txs ($0.01–$0.05) | **37,454** (29%) |
-| Sub-dime txs ($0.05–$0.10) | **8,485** (7%) |
-| Master distributor wallets funded (90d) | **13,616** |
+| Avg gas/tx: micropayments vs large payments | $0.001514 vs $0.001850 (same function) |
+| Gas token: micropayment senders | **63.6% USDC.e**, 36.4% pathUSD |
+| Gas token: large payment senders | 82.0% pathUSD, **18.0% USDC.e** |
+| Sub-cent txs (<$0.01) | **81,919** (64% of all micropayments) |
+| Sub-nickel txs ($0.01–$0.05) | **37,580** (29%) |
+| Sub-dime txs ($0.05–$0.10) | **8,598** (7%) |
+| Master distributor wallets funded (90d) | **13,611** |
 | Master distributor USDC.e distributed | **$3.17M** |
 | ef1e account IDs active (30d) | 1,082 |
-| mppshafu payments (90d) | 30 |
+| mppshafu payments (90d) | 3,641 (single load test, 1 sender → 1 recipient) |
 | Active memo formats identified | 11 |
-| Batch tx adoption | 0.24% |
-| Sponsorship rate in micropayments | 13–24% |
+| Sponsorship rate (all transferWithMemo, 30d) | **21.6%** |
 
 ---
 
 ## 8. Open Questions
 
 **On the ef1e platform:**
-1. Who operates `f70da97812cb`? With $3.17M distributed in 90 days to 13,616 wallets, this is a significant operation — likely a centralized exchange, payment processor, or Tempo's own product.
+1. Who operates `f70da97812cb`? With $3.17M distributed in 90 days to 13,611 wallets, this is a significant operation — likely a centralized exchange, payment processor, or Tempo's own product.
 2. What do the 7 amount values ($0.001–$0.025) encode? Are they reward tiers, settlement types, confidence scores? The fixed vocabulary suggests a purpose-built signaling system.
 3. Why does the ef1e system not use sponsorship? A single sponsored relayer would reduce operational complexity significantly given the scale of the wallet fleet.
 
 **On protocol development:**
-4. Is anyone building an MPP client/server on Tempo? The `mppshafu` format suggests someone has a design for it — 30 payments in 90 days is early experimentation.
+4. Who ran the mppshafu load test on Feb 16? The 3,641-payment burst (1 sender → 1 recipient, 70 minutes) is consistent with an integration test against a working prototype. If they ship a product, it will be the most interesting thing on the chain — but nothing has followed since Feb 16.
 5. What is the TMPO binary format spec? The `0101TMPO...03e8` structure looks like Tempo's own internal payment encoding.
 6. Who built the `reputation:successful_trade:95` / `validated:kyc_verified` system? A primitive on-chain reputation system with only 10 payments but potentially the seed of something larger.
 
