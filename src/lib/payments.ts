@@ -67,11 +67,38 @@ export interface PaymentsDailyByToken {
   tokens: Array<{ address: string; symbol: string; total: number }>
 }
 
+export interface MicropaymentStatsDailyPoint {
+  day: string
+  sub_cent_count: number
+  sub_cent_amount: number
+  sub_nickel_count: number
+  sub_nickel_amount: number
+  sub_dime_count: number
+  sub_dime_amount: number
+  large_count: number
+  large_amount: number
+  micro_count: number   // sub_cent + sub_nickel + sub_dime, computed server-side
+}
+
+export interface MicropaymentStatsSummary {
+  sub_cent_count: number
+  sub_nickel_count: number
+  sub_dime_count: number
+  large_count: number
+  micro_count: number
+  micro_amount: number  // sum of sub_cent + sub_nickel + sub_dime amounts
+  micro_share_pct: number  // micro_count / (micro_count + large_count) * 100
+}
+
 export interface PaymentsPageData {
   summary: PaymentsSummaryStats
   recent: PaymentRow[]
   daily: PaymentsDailyPoint[]
   dailyByToken: PaymentsDailyByToken
+  micropaymentStats: {
+    summary: MicropaymentStatsSummary
+    daily: MicropaymentStatsDailyPoint[]
+  }
   topRecipientsByAmount: PaymentCounterpartyRow[]
   topRecipientsByCount: PaymentCounterpartyRow[]
   topSenders: PaymentCounterpartyRow[]
@@ -119,6 +146,18 @@ interface RawPaymentCounterpartyRow {
   payment_count: string | number
   total_amount?: string | number
   total_amount_raw?: string | number
+}
+
+interface RawMicropaymentStatsDailyRow {
+  day: string
+  sub_cent_count: string | number
+  sub_cent_amount: string | number
+  sub_nickel_count: string | number
+  sub_nickel_amount: string | number
+  sub_dime_count: string | number
+  sub_dime_amount: string | number
+  large_count: string | number
+  large_amount: string | number
 }
 
 function isPrintableAscii(value: Buffer) {
@@ -551,23 +590,126 @@ export async function getPaymentsSummary(days = 30): Promise<PaymentsSummaryStat
   return summary
 }
 
+export async function getMicropaymentStatsDaily(days = 30): Promise<MicropaymentStatsDailyPoint[]> {
+  const cacheKey = `payments:micropayment-stats-daily:${days}`
+  const cached = await getCached<MicropaymentStatsDailyPoint[]>(cacheKey)
+  if (cached !== null) return cached
+
+  const rows = await queryClickHouse<RawMicropaymentStatsDailyRow>(`
+    SELECT
+      day,
+      sum(sub_cent_count)    AS sub_cent_count,
+      sum(sub_cent_amount)   AS sub_cent_amount,
+      sum(sub_nickel_count)  AS sub_nickel_count,
+      sum(sub_nickel_amount) AS sub_nickel_amount,
+      sum(sub_dime_count)    AS sub_dime_count,
+      sum(sub_dime_amount)   AS sub_dime_amount,
+      sum(large_count)       AS large_count,
+      sum(large_amount)      AS large_amount
+    FROM mv_micropayment_stats_daily
+    WHERE day >= today() - ${days}
+    GROUP BY day
+    ORDER BY day ASC
+  `)
+
+  const mapped = rows.map(row => {
+    const sub_cent_count   = toNumber(row.sub_cent_count)
+    const sub_nickel_count = toNumber(row.sub_nickel_count)
+    const sub_dime_count   = toNumber(row.sub_dime_count)
+    return {
+      day: sliceDay(row.day),
+      sub_cent_count,
+      sub_cent_amount:   roundTo(toNumber(row.sub_cent_amount)),
+      sub_nickel_count,
+      sub_nickel_amount: roundTo(toNumber(row.sub_nickel_amount)),
+      sub_dime_count,
+      sub_dime_amount:   roundTo(toNumber(row.sub_dime_amount)),
+      large_count:       toNumber(row.large_count),
+      large_amount:      roundTo(toNumber(row.large_amount)),
+      micro_count:       sub_cent_count + sub_nickel_count + sub_dime_count,
+    }
+  })
+
+  await setCached(cacheKey, mapped, CACHE_TTL_SECONDS)
+  return mapped
+}
+
+export async function getMicropaymentStatsSummary(days = 30): Promise<MicropaymentStatsSummary> {
+  const cacheKey = `payments:micropayment-stats-summary:${days}`
+  const cached = await getCached<MicropaymentStatsSummary>(cacheKey)
+  if (cached !== null) return cached
+
+  const rows = await queryClickHouse<{
+    sub_cent_count: string | number
+    sub_nickel_count: string | number
+    sub_dime_count: string | number
+    large_count: string | number
+    micro_amount: string | number
+  }>(`
+    SELECT
+      sum(sub_cent_count)                                        AS sub_cent_count,
+      sum(sub_nickel_count)                                      AS sub_nickel_count,
+      sum(sub_dime_count)                                        AS sub_dime_count,
+      sum(large_count)                                           AS large_count,
+      sum(sub_cent_amount + sub_nickel_amount + sub_dime_amount) AS micro_amount
+    FROM mv_micropayment_stats_daily
+    WHERE day >= today() - ${days}
+  `)
+
+  const r = rows[0] ?? {}
+  const sub_cent_count   = toNumber(r.sub_cent_count)
+  const sub_nickel_count = toNumber(r.sub_nickel_count)
+  const sub_dime_count   = toNumber(r.sub_dime_count)
+  const large_count      = toNumber(r.large_count)
+  const micro_count      = sub_cent_count + sub_nickel_count + sub_dime_count
+  const total_count      = micro_count + large_count
+
+  const summary: MicropaymentStatsSummary = {
+    sub_cent_count,
+    sub_nickel_count,
+    sub_dime_count,
+    large_count,
+    micro_count,
+    micro_amount:    roundTo(toNumber(r.micro_amount)),
+    micro_share_pct: total_count === 0 ? 0 : roundTo((micro_count * 100) / total_count),
+  }
+
+  await setCached(cacheKey, summary, CACHE_TTL_SECONDS)
+  return summary
+}
+
 export async function getPaymentsPageData(): Promise<PaymentsPageData> {
-  const [summary, daily, dailyByToken, recent, topRecipientsByAmount, topRecipientsByCount, topSenders] =
-    await Promise.all([
-      getPaymentsSummary(),
-      getPaymentsDaily(),
-      getPaymentsDailyByToken(),
-      getRecentPayments(),
-      getTopCounterparties('recipient', 'amount'),
-      getTopCounterparties('recipient', 'count'),
-      getTopCounterparties('sender', 'count'),
-    ])
+  const [
+    summary,
+    daily,
+    dailyByToken,
+    recent,
+    micropaymentDaily,
+    micropaymentSummary,
+    topRecipientsByAmount,
+    topRecipientsByCount,
+    topSenders,
+  ] = await Promise.all([
+    getPaymentsSummary(),
+    getPaymentsDaily(),
+    getPaymentsDailyByToken(),
+    getRecentPayments(),
+    getMicropaymentStatsDaily(),
+    getMicropaymentStatsSummary(),
+    getTopCounterparties('recipient', 'amount'),
+    getTopCounterparties('recipient', 'count'),
+    getTopCounterparties('sender', 'count'),
+  ])
 
   return {
     summary,
     daily,
     dailyByToken,
     recent,
+    micropaymentStats: {
+      summary: micropaymentSummary,
+      daily: micropaymentDaily,
+    },
     topRecipientsByAmount,
     topRecipientsByCount,
     topSenders,

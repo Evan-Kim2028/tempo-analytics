@@ -86,7 +86,7 @@ import {
 
 import { getBridgeNetInflowChartData } from '@/lib/bridges'
 
-import { getPaymentsDailyByToken } from '@/lib/payments'
+import { getPaymentsDailyByToken, getMicropaymentStatsDaily } from '@/lib/payments'
 
 import { expectRechartsRows, expectPivotContract } from '../helpers/chart-contract'
 
@@ -480,6 +480,59 @@ describe('getPaymentsDailyByToken → PaymentsAmountChart', () => {
 
     const data = await getPaymentsDailyByToken(1)
     expect(data.tokens[0].total).toBeGreaterThanOrEqual(data.tokens[1].total)
+  })
+})
+
+// Chart: MicropaymentTierChart, MicropaymentVsLargeChart
+// DataKeys: sub_cent_count, sub_nickel_count, sub_dime_count, large_count, micro_count
+describe('getMicropaymentStatsDaily → MicropaymentTierChart / MicropaymentVsLargeChart', () => {
+  test('contract: all tier count fields are finite numbers', async () => {
+    mockQueryOnce([
+      {
+        day: '2026-04-01',
+        sub_cent_count: '82000', sub_cent_amount: '150.5',
+        sub_nickel_count: '12000', sub_nickel_amount: '310.2',
+        sub_dime_count: '4000', sub_dime_amount: '280.0',
+        large_count: '14000', large_amount: '95000.0',
+      },
+      {
+        day: '2026-04-02',
+        sub_cent_count: '75000', sub_cent_amount: '140.1',
+        sub_nickel_count: '11000', sub_nickel_amount: '290.5',
+        sub_dime_count: '3800', sub_dime_amount: '265.3',
+        large_count: '13500', large_amount: '90000.0',
+      },
+    ])
+    const rows = await getMicropaymentStatsDaily(2)
+    expectRechartsRows(rows as never, ['sub_cent_count', 'sub_nickel_count', 'sub_dime_count', 'large_count', 'micro_count'])
+  })
+
+  test('contract: zero values are valid finite numbers', async () => {
+    mockQueryOnce([
+      {
+        day: '2026-04-01',
+        sub_cent_count: '0', sub_cent_amount: '0',
+        sub_nickel_count: '0', sub_nickel_amount: '0',
+        sub_dime_count: '0', sub_dime_amount: '0',
+        large_count: '0', large_amount: '0',
+      },
+    ])
+    const rows = await getMicropaymentStatsDaily(1)
+    expectRechartsRows(rows as never, ['sub_cent_count', 'sub_nickel_count', 'sub_dime_count', 'large_count', 'micro_count'])
+  })
+
+  test('contract: micro_count equals sum of three sub-tiers', async () => {
+    mockQueryOnce([
+      {
+        day: '2026-04-01',
+        sub_cent_count: '100', sub_cent_amount: '0.5',
+        sub_nickel_count: '50', sub_nickel_amount: '1.5',
+        sub_dime_count: '25', sub_dime_amount: '2.0',
+        large_count: '200', large_amount: '500.0',
+      },
+    ])
+    const rows = await getMicropaymentStatsDaily(1)
+    expect(rows[0].micro_count).toBe(rows[0].sub_cent_count + rows[0].sub_nickel_count + rows[0].sub_dime_count)
   })
 })
 
