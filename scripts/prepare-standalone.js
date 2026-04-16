@@ -60,6 +60,7 @@ async function resolveManagedStartSpec(rootDir, options = {}) {
   const envFile = await resolveStandaloneEnvFile(rootDir).catch(() => null)
   const serverEntry = await resolveStandaloneServerEntry(rootDir).catch(() => null)
   if (envFile && serverEntry) {
+    await prepareStandaloneAssets(rootDir)
     return {
       mode: 'standalone',
       command: nodeExecutable,
